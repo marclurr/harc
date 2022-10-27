@@ -1,40 +1,6 @@
 local Object = require("lib.classic")
 
-local wallShader = love.graphics.newShader([[
-    #ifdef PIXEL
-    uniform vec2 drawDimensions;
-    uniform ArrayImage textures;
-    uniform Image dataBuffer;
-    uniform float cameraOffset = 0;
-    uniform float cameraTilt = 0;
-    uniform float drawDepth = 1;
-    vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
-        vec2 column = vec2(screen_coords.x/drawDimensions.x, 0);
-        float middle = drawDimensions.y /2;
-
-        vec4 data = Texel(dataBuffer, column);
-        float textureId = data.r;
-        float wallHeight = data.g ;
-        float u = data.b;
-        float shade = data.a;
-        float distance = Texel(dataBuffer, vec2(screen_coords.x/drawDimensions.x, 1)).r;
-
-        float ceilling = (drawDimensions.y/2) - (wallHeight/2) + (cameraOffset / distance) + cameraTilt;
-        float floor = ceilling + wallHeight;
-        float v = (screen_coords.y-ceilling) / wallHeight;
-
-        
-        if (screen_coords.y < ceilling || screen_coords.y > floor) {
-            discard;
-        }
-        
-        vec3 colour = Texel(textures, vec3(u,v, textureId)).rgb * shade;
-        gl_FragDepth = distance / drawDepth;
-        return vec4(colour, 1);
-    }
-    #endif
-]])
-
+local wallShader = love.graphics.newShader("walls.glsl")
 
 WallSide = {
     North = 1,
@@ -74,23 +40,36 @@ local raycast = {}
 raycast.init = function(width, height, maxDepth, shadeDepth)
     raycast.width = width
     raycast.height = height
+
+    
+    raycast.rayDir = vector()
+    --[[ 
+        data buffer is an image the width of the render canvas, with a height of 2. Wall render data is pushed here before being rendered
+        by the wall shader. A height of 2 allows up to 8 values per column (2*rgba) to be sent to the shader. More rows can be added to allow more data transfer
+        but the point of using a shader is to minimise the number of 'pixels' written to by the CPU, so it's best that this be kept to just what's
+        necessary. 
+
+        pixel format rgba16f allows values to have a range of [-65504, +65504], which should be more than ample. See https://love2d.org/wiki/PixelFormat
+        data layout:
+        __________________________________________________________
+        |     | r         | g             | b         | a         |
+        |=====|===========|===============|===========|===========|
+        | 0   | textureId | wallHeight    | texture U | shade     |
+        | 1   | rayLength | not used      | not used  | not used  |
+        |_____|___________|_______________|___________|___________|
+    ]]
+    if raycast.dataBuffer then raycast.dataBuffer:release() end
+    raycast.dataBuffer = love.image.newImageData(width, 2, "rgba16f") 
+    raycast.dataBufferTexture = love.graphics.newImage(raycast.dataBuffer)
+
+    raycast.result = RayCastResult()
+    raycast.maxDepth = maxDepth
+    raycast.shadeDepth = shadeDepth    
+
     wallShader:send("drawDimensions", {width, height})
     wallShader:send("drawDepth", maxDepth)
-    if raycast.dataBuffer then raycast.dataBuffer:release() end
-    
-
-    raycast.rayDir = vector()
-    raycast.dataBuffer = love.image.newImageData(width, 2, "rgba16f")
-    raycast.dataBufferTexture = love.graphics.newImage(raycast.dataBuffer)
-    raycast.result = RayCastResult()
-    raycast.zBuffer = {}
-    raycast.maxDepth = maxDepth
-    raycast.shadeDepth = shadeDepth
-
-    for x=0,width-1 do
-        raycast.dataBuffer:setPixel(x, 0, 0,math.random(),0,1)
-    end
-    
+    wallShader:send("dataBuffer", raycast.dataBufferTexture)
+    wallShader:send("textures", debugTexture)
 end
 
 local function rayCastDDA(rayStart, rayDir, map, result)
@@ -135,7 +114,7 @@ local function rayCastDDA(rayStart, rayDir, map, result)
             mapCheck.y = mapCheck.y + step.y
             distance = rayLength.y
             rayLength.y = rayLength.y + rayUnitStepSize.y
-            side = 2
+            side = 0
         end
 
         if mapCheck.x >= 0 and mapCheck.x < 16 and mapCheck.y >= 0 and mapCheck.y < 16 then
@@ -144,6 +123,8 @@ local function rayCastDDA(rayStart, rayDir, map, result)
             local id = map[i+1]
             if id > 0 then
                 result.tileId = id
+                result.x = mapCheck.x
+                result.y = mapCheck.y
                 result.rayLength = distance
                 result.totalChecks = numChecks
                 result.side = side
@@ -161,7 +142,7 @@ local function rayCastDDA(rayStart, rayDir, map, result)
                     end
                 end
             
-                if side == 2 then
+                if side == 0 then
                     if rayDir.y >= 0 then
                         result.collisionSide = WallSide.North
                         result.u =  1- math.remainder(result.collisionPoint.x)
@@ -218,7 +199,7 @@ local function rayCastDDA(rayStart, rayDir, map, result)
                     local m = rayDir.y / rayDir.x
                     local dx =0.5
                     local dy =  0
-                    if side == 2 then
+                    if side == 0 then
                         --[[
                             if the ray entered the tile on the x-axis we need to readjust the x-delta to reach the mid-point of the tile
                             We just remove the collision point's fractional x value from the mid-point
@@ -267,9 +248,7 @@ local function renderWalls(position, headOffset, angle, tilt, fov, map)
 
     local start = love.timer.getTime()
 
-    local h = 64
     local result = raycast.result
-    local maxHeight = 0
     for x = 0,raycast.width-1 do
         local rayAngle = startAngle + (x * angleStep)
         
@@ -278,31 +257,14 @@ local function renderWalls(position, headOffset, angle, tilt, fov, map)
        
         -- cast ray into the scene for this screen column
         if rayCastDDA(position, rayDir, map, result) then
-            -- collect data pertinent to render step, try and push as much conditional as possible here (i.e., anything that is per-column), 
-            -- as conditionals will slow down the column render step
-            
+            -- collect data pertinent to render step and push into a texture to be read by the wall shader 
             local correctedRayLength = result.rayLength * cos(rayAngle - angle)
             local wallHeight = raycast.height/correctedRayLength
-            local ceilling = (raycast.height/2)-(wallHeight/2)  + (headOffset /correctedRayLength) + tilt
-            local floor = ceilling + wallHeight
-            local shade = 1 
-            local collisionSide = result.collisionSide
-            
-            if collisionSide == WallSide.West or collisionSide == WallSide.East then
-                shade = 0.8
-            end
-            
-            shade = shade *  1 - (correctedRayLength/raycast.shadeDepth)
-            
-            local u = result.u
+            local shade = (1 - (0.2 * result.side)) * (1 - (correctedRayLength/raycast.shadeDepth))
 
-            raycast.dataBuffer:setPixel(x, 0, result.tileId, wallHeight, u, shade)
-            raycast.dataBuffer:setPixel(x, 1, correctedRayLength,0,0,0)
-        
-            maxHeight = math.max(maxHeight, wallHeight)
-        
+            raycast.dataBuffer:setPixel(x, 0, result.tileId, wallHeight, result.u, shade)
+            raycast.dataBuffer:setPixel(x, 1, correctedRayLength,correctedRayLength/raycast.maxDepth,0,0)      
         end
-        
 
         totalChecks = totalChecks + result.totalChecks
     end
@@ -311,8 +273,7 @@ local function renderWalls(position, headOffset, angle, tilt, fov, map)
 
     raycast.dataBufferTexture:replacePixels(raycast.dataBuffer)
 
-    wallShader:send("dataBuffer", raycast.dataBufferTexture)
-    wallShader:send("textures", debugTexture)
+
     wallShader:send("cameraOffset", headOffset)
     wallShader:send("cameraTilt", tilt)
 
