@@ -1,6 +1,10 @@
 local Object = require("lib.classic")
+local vector = require("lib.hump.vector")
 
-local wallShader = love.graphics.newShader("walls.glsl")
+local wallShader = love.graphics.newShader("shaders/walls.glsl")
+local floorShader = love.graphics.newShader("shaders/floor.glsl")
+local ceillingShader = love.graphics.newShader("shaders/ceilling.glsl")
+local spriteShader = love.graphics.newShader("shaders/sprite.glsl")
 
 WallSide = {
     North = 1,
@@ -37,11 +41,13 @@ cos = math.cos
 
 local raycast = {}
 
-raycast.init = function(width, height, maxDepth, shadeDepth)
+raycast.init = function(width, height, maxDepth, shadeDepth, drawCanvas)
     raycast.width = width
     raycast.height = height
 
-    
+    raycast.drawCanvas = drawCanvas
+    raycast.depthBuffer = love.graphics.newCanvas(width, height)
+    raycast.sprDepthBuffer = love.graphics.newCanvas(width, height, {type = "2d", format = "depth16", readable = true})
     raycast.rayDir = vector()
     --[[ 
         data buffer is an image the width of the render canvas, with a height of 2. Wall render data is pushed here before being rendered
@@ -235,7 +241,12 @@ local function rayCastDDA(rayStart, rayDir, map, result)
     return false
 end
 
-local function renderWalls(position, headOffset, angle, tilt, fov, map)
+local function renderWalls(camera, map)
+    local position = camera.position
+    local headOffset = camera.height
+    local angle = camera.angle
+    local fov = camera.fov
+
     raycast.visibleTiles = {}
 
     local totalChecks = 0
@@ -275,8 +286,8 @@ local function renderWalls(position, headOffset, angle, tilt, fov, map)
 
 
     wallShader:send("cameraOffset", headOffset)
-    wallShader:send("cameraTilt", tilt)
-
+   
+    love.graphics.setCanvas(raycast.drawCanvas, raycast.depthBuffer)
     love.graphics.setShader(wallShader)
     love.graphics.rectangle("fill", 0, 0, raycast.width, raycast.height)
     love.graphics.setShader()
@@ -287,6 +298,96 @@ local function renderWalls(position, headOffset, angle, tilt, fov, map)
 end
 
 
+local function drawTexturedPlane(shader, top, h, camera)
+    local position = camera.position
+    local headOffset = camera.height
+    local angle = camera.angle
+    local fov = camera.fov
+
+    love.graphics.setShader(shader)
+    shader:send("width", raycast.width)
+    shader:send("height", raycast.height/2)
+    shader:send("position", {position.x, position.y})
+    shader:send("textures", debugTexture)
+    shader:send("fov", fov)
+    shader:send("angle", angle)
+    shader:send("cameraOffset", headOffset)
+   
+    love.graphics.rectangle("fill",0,top,raycast.width,h)
+end
+
+local function renderCeillingAndFloor(camera)
+    love.graphics.setCanvas(raycast.drawCanvas)
+    drawTexturedPlane(ceillingShader, 0, raycast.height/2, camera)
+    drawTexturedPlane(floorShader, raycast.height/2, raycast.height/2, camera)
+end
+
+local function renderSprites(camera, sprites)
+    local position = camera.position
+    local headOffset = camera.height
+    local angle = camera.angle
+    local fov = camera.fov
+
+    love.graphics.setCanvas({raycast.drawCanvas, depthstencil = raycast.sprDepthBuffer})
+    love.graphics.setDepthMode("lequal", true)
+
+    love.graphics.setShader(spriteShader)
+    spriteShader:send("depthBuffer", raycast.depthBuffer)
+    spriteShader:send("maxDepth", raycast.maxDepth)
+    spriteShader:send("shadeDepth", raycast.shadeDepth)
+
+    for i=1,#sprites do
+        local spr = sprs[i]
+        local sprX = spr.position.x - position.x
+        local sprY = spr.position.y - position.y
+        local dst = math.sqrt(sprX*sprX + sprY*sprY)
+        local eyeX = math.cos(angle)
+        local eyeY = math.sin(angle)
+        local objAngle =  math.atan2(sprY, sprX)- math.atan2(eyeY, eyeX)
+
+        if objAngle < -math.pi then
+            objAngle = objAngle + 2* math.pi
+        end
+
+        if objAngle > math.pi then
+            objAngle = objAngle - 2* math.pi
+        end
+
+        local visible = (vector(sprX, sprY):normalized() * vector(eyeX, eyeY) ) >= 0.5
+
+        if visible then
+            local texture = spr.texture
+            local perpDistance = dst * math.cos( objAngle )
+            local fullHeight = raycast.height / perpDistance
+
+            local objHeight =  (math.min(1,texture:getHeight()/32)* raycast.height) / perpDistance
+            
+            local floor = (raycast.height/2) + (fullHeight*0.5) + (headOffset/perpDistance) 
+            local ceilling = floor - objHeight
+            local aspectRatio = texture:getHeight() / texture:getWidth()
+            local objWidth = objHeight / aspectRatio
+            local objMiddle = ((0.5 * (objAngle/(fov/2)))+0.5) * raycast.width
+            local startY = ceilling
+            local startX = math.floor(objMiddle - (objWidth/2))
+
+            spriteShader:send("depth", perpDistance)
+            love.graphics.draw(texture,startX, startY, 0, objWidth / texture:getWidth(), objHeight/ texture:getHeight())
+            
+        end
+    end
+end
+
 raycast.renderWalls = renderWalls
 raycast.rayCastDDA = rayCastDDA
+raycast.renderScene = function(camera, map, sprites)
+    -- clear all raycast specific buffers, but not the draw buffer as it doesn't belong to us
+    love.graphics.setCanvas({raycast.depthBuffer, depthstencil = raycast.sprDepthBuffer})
+    love.graphics.clear()
+    love.graphics.reset()
+
+    renderCeillingAndFloor(camera, map)
+    renderWalls(camera, map)
+    renderSprites(camera, sprites)
+end
+
 return raycast

@@ -54,9 +54,9 @@ void effect() {
     float v = (screen_coords.y-ceilling) / rd.wallHeight;
 
     if (screen_coords.y < ceilling || screen_coords.y > floor) {
+        // can't discard this fragment as we want to write to the WALL_DEPTH_BUFFER, so just write a blank pixel instead
         love_Canvases[MAIN_CANVAS] = vec4(0);
         love_Canvases[WALL_DEPTH_BUFFER] = vec4(1);
-        
     } else {    
         vec3 colour = Texel(textures, vec3(rd.u,v, rd.textureId)).rgb * rd.shade;
         float depth = rd.distance / drawDepth;
