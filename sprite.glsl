@@ -17,8 +17,7 @@ void effect() {
         love_Canvases[0] = vec4(colour.rgb*shade,1);
         gl_FragDepth = normalisedDepth;
     } else {
-        love_Canvases[0] = vec4(0);
-        gl_FragDepth = 1.0f;
+        discard;
     }
 }
 #endif
