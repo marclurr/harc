@@ -20,7 +20,7 @@ __________________________________________________________
 |     | r         | g             | b         | a         |
 |=====|===========|===============|===========|===========|
 | 0   | textureId | wallHeight    | texture U | shade     |
-| 1   | rayLength | not used      | not used  | not used  |
+| 1   | rayLength | normalised z  | not used  | not used  |
 |_____|___________|_______________|___________|___________|
 */
 uniform Image dataBuffer;
