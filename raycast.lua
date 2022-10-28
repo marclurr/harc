@@ -1,6 +1,8 @@
 local Object = require("lib.classic")
 local vector = require("lib.hump.vector")
 
+
+
 local wallShader = love.graphics.newShader("shaders/walls.glsl")
 local floorShader = love.graphics.newShader("shaders/floor.glsl")
 local ceillingShader = love.graphics.newShader("shaders/ceilling.glsl")
@@ -46,8 +48,9 @@ raycast.init = function(width, height, maxDepth, shadeDepth, drawCanvas)
     raycast.height = height
 
     raycast.drawCanvas = drawCanvas
-    raycast.depthBuffer = love.graphics.newCanvas(width, height)
     raycast.sprDepthBuffer = love.graphics.newCanvas(width, height, {type = "2d", format = "depth16", readable = true})
+    raycast.spriteMode = {raycast.drawCanvas, depthstencil = raycast.sprDepthBuffer}
+    raycast.justDepthBuffer = {depthstencil = raycast.sprDepthBuffer}
     raycast.rayDir = vector()
     --[[ 
         data buffer is an image the width of the render canvas, with a height of 2. Wall render data is pushed here before being rendered
@@ -72,10 +75,20 @@ raycast.init = function(width, height, maxDepth, shadeDepth, drawCanvas)
     raycast.maxDepth = maxDepth
     raycast.shadeDepth = shadeDepth    
 
-    wallShader:send("drawDimensions", {width, height})
-    wallShader:send("drawDepth", maxDepth)
     wallShader:send("dataBuffer", raycast.dataBufferTexture)
     wallShader:send("textures", debugTexture)
+
+    raycast.spriteProjectionMatrix = ortho(0, width, height, 0, 0, maxDepth)
+    spriteShader:send("spriteProjectionMatrix", raycast.spriteProjectionMatrix)
+    spriteShader:send("shadeDepth", raycast.shadeDepth)
+
+    ceillingShader:send("width", raycast.width)
+    ceillingShader:send("height", raycast.height/2)
+    ceillingShader:send("shadeDepth", raycast.shadeDepth)
+    floorShader:send("width", raycast.width)
+    floorShader:send("height", raycast.height/2)
+    floorShader:send("shadeDepth", raycast.shadeDepth)
+
 end
 
 local function rayCastDDA(rayStart, rayDir, map, result)
@@ -287,7 +300,8 @@ local function renderWalls(camera, map)
 
     wallShader:send("cameraOffset", headOffset)
    
-    love.graphics.setCanvas(raycast.drawCanvas, raycast.depthBuffer)
+    love.graphics.setCanvas({raycast.drawCanvas, depthstencil = raycast.sprDepthBuffer})
+    love.graphics.setDepthMode("always", true)
     love.graphics.setShader(wallShader)
     love.graphics.rectangle("fill", 0, 0, raycast.width, raycast.height)
     love.graphics.setShader()
@@ -297,7 +311,6 @@ local function renderWalls(camera, map)
     return totalChecks, raycastTime*1000000, renderTime*1000000
 end
 
-
 local function drawTexturedPlane(shader, top, h, camera)
     local position = camera.position
     local headOffset = camera.height
@@ -305,13 +318,12 @@ local function drawTexturedPlane(shader, top, h, camera)
     local fov = camera.fov
 
     love.graphics.setShader(shader)
-    shader:send("width", raycast.width)
-    shader:send("height", raycast.height/2)
-    shader:send("position", {position.x, position.y})
+    shader:send("position", camera.positionArray)
     shader:send("textures", debugTexture)
     shader:send("fov", fov)
     shader:send("angle", angle)
     shader:send("cameraOffset", headOffset)
+    
    
     love.graphics.rectangle("fill",0,top,raycast.width,h)
 end
@@ -328,13 +340,11 @@ local function renderSprites(camera, sprites)
     local angle = camera.angle
     local fov = camera.fov
 
-    love.graphics.setCanvas({raycast.drawCanvas, depthstencil = raycast.sprDepthBuffer})
+    love.graphics.setCanvas(raycast.spriteMode)
     love.graphics.setDepthMode("lequal", true)
 
     love.graphics.setShader(spriteShader)
-    spriteShader:send("depthBuffer", raycast.depthBuffer)
-    spriteShader:send("maxDepth", raycast.maxDepth)
-    spriteShader:send("shadeDepth", raycast.shadeDepth)
+    
 
     for i=1,#sprites do
         local spr = sprs[i]
@@ -377,17 +387,17 @@ local function renderSprites(camera, sprites)
     end
 end
 
-raycast.renderWalls = renderWalls
 raycast.rayCastDDA = rayCastDDA
 raycast.renderScene = function(camera, map, sprites)
     -- clear all raycast specific buffers, but not the draw buffer as it doesn't belong to us
-    love.graphics.setCanvas({raycast.depthBuffer, depthstencil = raycast.sprDepthBuffer})
+    love.graphics.setCanvas(raycast.justDepthBuffer)
     love.graphics.clear()
     love.graphics.reset()
 
     renderCeillingAndFloor(camera, map)
     renderWalls(camera, map)
     renderSprites(camera, sprites)
+    
 end
 
 return raycast

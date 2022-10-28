@@ -8,7 +8,7 @@ uniform float fov;
 uniform float angle;
 uniform float cameraOffset = 0;
 uniform float cameraTilt = 0;
-
+uniform float shadeDepth = 1;
 
 vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
 {
@@ -17,7 +17,7 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
     vec2 dir = vec2(cos(rayAngle), sin(rayAngle));
 
     float z = (height+cameraOffset)/(screen_coords.y-(height));
-    float s = 1.0f - (z/12);
+    float s = 1.0f - (z/shadeDepth);
     float ppx = position.x + dir.x * (z/cos(rayAngle-angle));
     float ppy = position.y + dir.y * (z/cos(rayAngle-angle));
     float ux = floor(ppx);

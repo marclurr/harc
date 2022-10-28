@@ -19,7 +19,7 @@ local map = {
 }
 
 love.graphics.setDefaultFilter("nearest", "nearest")
-local width, height= love.graphics.getWidth(), love.graphics.getHeight()
+local width, height= 320,200 --love.graphics.getWidth(), love.graphics.getHeight()
 local drawCanvas = love.graphics.newCanvas(width, height)
 
 debugTexture = love.graphics.newArrayImage({"assets/textures/debug.png", "assets/textures/danger-wall.png", "assets/textures/door.png"})
@@ -36,16 +36,17 @@ raycast.init(width, height, 25, 12, drawCanvas)
 local camera = Camera(1.04)
 local position = vector(1.5, 1.5)
 local headOffset = 0
-local angle = math.pi/4
+local angle = 0 -- math.pi/4
 
 local tilt = 0
 local fov = 1.04
 
 sprs = {}
 
-for i=1,200 do
+for i=1,15 do
     table.insert(sprs, {
         position= vector(math.random(1,14) +0.5, math.random(1,14)+0.5), 
+        -- position= vector(4.5, 1.5), 
         texture = zombie
     })
 end
@@ -68,7 +69,7 @@ t = 0
 
 function love.update(dt)
     t = t + dt 
-    headOffset = math.sin(t*12) * 16
+    -- headOffset = math.sin(t*12) * 16
     local speed = 5
     local moving = false
     local playerDir = vector(math.cos(angle), math.sin(angle))
@@ -109,9 +110,9 @@ function love.draw()
     love.graphics.reset()
     
     love.graphics.draw(drawCanvas,0,0,0,math.floor(love.graphics.getWidth()/width),math.floor(love.graphics.getHeight()/height))
-    
+    love.graphics.draw(raycast.sprDepthBuffer, 0, raycast.height - raycast.height*0.25, 0, 0.25, 0.25)
     love.graphics.setColor(0,0,0,1)
     
-    love.graphics.print(string.format("frameTime=%0.f, drawCalls=%d",totalTime* 1000000, dc), 5, 25)
+    love.graphics.print(string.format("frameTime=%.2fms, drawCalls=%d",totalTime* 1000, dc), 5, 25)
     love.graphics.setColor(1,1,1,1)
 end
