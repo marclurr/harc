@@ -99,13 +99,21 @@ raycast.init = function(width, height, maxDepth, shadeDepth, drawCanvas)
     }
 end
 
+
+local rayUnitStepSize = vector()
+local mapCheck = vector()
+local rayLength  = vector(0, 0)
+local step = vector(0, 0)
+
 local function rayCastDDA(rayStart, rayDir, map, result)
     result:reset()
 
-    local rayUnitStepSize = vector(math.sqrt(1+(rayDir.y/rayDir.x)*(rayDir.y/rayDir.x)), math.sqrt(1+(rayDir.x/rayDir.y)*(rayDir.x/rayDir.y)))
-    local mapCheck = vector(math.floor(rayStart.x), math.floor(rayStart.y))
-    local rayLength  = vector(0, 0)
-    local step = vector(0, 0)
+    rayUnitStepSize.x = math.sqrt(1+(rayDir.y/rayDir.x)*(rayDir.y/rayDir.x))
+    rayUnitStepSize.y =  math.sqrt(1+(rayDir.x/rayDir.y)*(rayDir.x/rayDir.y))
+    mapCheck.x = math.floor(rayStart.x)
+    mapCheck.y =  math.floor(rayStart.y)
+    rayLength.x, rayLength.y = 0, 0
+    step.x, step.y = 0, 0
 
     if rayDir.x < 0 then
         step.x = -1
@@ -129,7 +137,7 @@ local function rayCastDDA(rayStart, rayDir, map, result)
     local side = -1
     local numChecks = 0
     
-    raycast.visibleTiles[(mapCheck.y * 256) + mapCheck.x +1] = true
+    -- raycast.visibleTiles[(mapCheck.y * 256) + mapCheck.x +1] = true
     while distance < maxDistance do
         numChecks = numChecks + 1
         if rayLength.x < rayLength.y then
@@ -255,7 +263,7 @@ local function rayCastDDA(rayStart, rayDir, map, result)
                     return true
                 -- end
             else
-                raycast.visibleTiles[i+1] = true
+                -- raycast.visibleTiles[i+1] = true
             end
         end
 
@@ -271,11 +279,11 @@ local function renderWalls(camera, map)
     local angle = camera.angle
     local fov = camera.fov
 
-    raycast.visibleTiles = {}
+    -- raycast.visibleTiles = {}
 
     local totalChecks = 0
     
-    local zBuffer = raycast.zBuffer
+    
     local angleStep = fov / raycast.width
     local startAngle = angle - (fov/2)
 
@@ -363,6 +371,9 @@ local function renderCeillingAndFloor(camera, map)
     timings.floorRenderTime = love.timer.getTime() - start
 end
 
+local toSpr = vector(0,0)
+local eyeDir = vector(0,0)
+
 local function renderSprites(camera, sprites)
     local position = camera.position
     local headOffset = camera.height
@@ -392,7 +403,9 @@ local function renderSprites(camera, sprites)
             objAngle = objAngle - 2* math.pi
         end
 
-        local visible = (vector(sprX, sprY):normalized() * vector(eyeX, eyeY) ) >= 0.5
+        toSpr.x, toSpr.y = sprX, sprY
+        eyeDir.x, eyeDir.y = eyeX, eyeY
+        local visible = (toSpr * eyeDir) >= 0.5 
 
         if visible then
             local texture = spr.texture

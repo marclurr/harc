@@ -8,6 +8,7 @@ ffi.cdef[[
     typedef struct {uint8_t tileId, nu1, nu2, nu3; } surface;
 ]]
 
+-- because the floors are queried using a GPU texture, maps ideally should have square, power of 2 dimensions 
 function Map:new(width,height, texturePack, data)
     self.width = width
     self.height = height

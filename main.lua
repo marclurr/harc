@@ -1,30 +1,29 @@
-local walls = {}
-local floors = {}
-local ceillings = {}
+-- generate a test map
 local mapData = {}
-mapsize=16
-for i=1,mapsize*mapsize do
-    local x = (i-1)% mapsize
-    local y = math.floor((i-1)/mapsize)
+mapsize=256
+for i=0,(mapsize*mapsize)-1 do
+    local x = (i)% mapsize
+    local y = math.floor((i)/mapsize)
 
     local wall = {type=-1}
     local floor = {tileId=-1}
     local ceilling = {tileId=-1}
     
-    if y == 0 or y == mapsize-1 then 
-        wall = {type=1, tileId=1}
+    if y == 0 or y == mapsize-1 or x == 0 or x == mapsize-1 then 
+        wall = {type=1, tileId=math.random(0,2)}
     else
-        if x == 0 or x == mapsize-1 then
-            wall = {type=1, tileId=1}
-        else
-            floor = {tileId=0}
-            ceilling = {tileId=0}  
-        end
+        -- if y == 1 then print("it's one") end
+            -- if math.random() > 0.8 then
+            --     -- wall = {type=1, tileId=math.random(0,2)}
+            -- end
+        floor = {tileId=math.random(0,2)}
+        ceilling = {tileId=math.random(0,2)}  
+        
     end
 
-    mapData[i]=wall
-    mapData[i+(mapsize*mapsize)]=floor
-    mapData[i+(mapsize*mapsize*2)]=ceilling
+    mapData[i+1]=wall
+    mapData[i+1+(mapsize*mapsize)]=floor
+    mapData[i+1+(mapsize*mapsize*2)]=ceilling
 end
 
 
@@ -43,7 +42,7 @@ local raycast = require("raycast")
 local Map = require("map")
 
 
-local map = Map(16, 16, debugTexture, mapData)
+local map = Map(mapsize, mapsize, debugTexture, mapData)
 raycast.init(width, height, 50, 45, drawCanvas)
 
 local camera = Camera(1.04)
