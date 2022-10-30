@@ -4,6 +4,8 @@ uniform float width;
 uniform float height;
 uniform vec2 position;
 uniform ArrayImage textures;
+uniform Image map;
+uniform ivec2 mapDimensions;
 uniform float fov;
 uniform float angle;
 uniform float cameraOffset = 0;
@@ -21,13 +23,17 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
     float ppx = position.x + dir.x * (z/cos(rayAngle-angle));
     float ppy = position.y + dir.y * (z/cos(rayAngle-angle));
     float ux = floor(ppx);
-    float uy = floor(ppy);
-        
-                
+    float uy = floor(ppy);          
     float u = ppx - ux;
     float v = ppy - uy;
+    
+    float tileId = Texel(map, vec2(ux/mapDimensions.x, uy/mapDimensions.y)).r;
 
-    vec3 colour = Texel(textures, vec3(u,v,0)).rgb;
+    if (int(ux) < 0 || int(ux) >= mapDimensions.x || int(uy) < 0 || int(uy) >= mapDimensions.y || tileId < 0) {
+        discard;
+    }
+
+    vec3 colour = Texel(textures, vec3(u,v,tileId)).rgb;
     
     return vec4(colour*s, 1);
 }

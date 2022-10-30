@@ -76,7 +76,6 @@ raycast.init = function(width, height, maxDepth, shadeDepth, drawCanvas)
     raycast.shadeDepth = shadeDepth    
 
     wallShader:send("dataBuffer", raycast.dataBufferTexture)
-    wallShader:send("textures", debugTexture)
 
     raycast.spriteProjectionMatrix = ortho(0, width, height, 0, 0, maxDepth)
     spriteShader:send("spriteProjectionMatrix", raycast.spriteProjectionMatrix)
@@ -85,10 +84,19 @@ raycast.init = function(width, height, maxDepth, shadeDepth, drawCanvas)
     ceillingShader:send("width", raycast.width)
     ceillingShader:send("height", raycast.height/2)
     ceillingShader:send("shadeDepth", raycast.shadeDepth)
+    
     floorShader:send("width", raycast.width)
     floorShader:send("height", raycast.height/2)
     floorShader:send("shadeDepth", raycast.shadeDepth)
+    
 
+    raycast.timings = {
+        floorRenderTime = 0,
+        ceillingRenderTime = 0,
+        wallsRenderTime = 0,
+        spritesRenderTime = 0,
+        numChecks = 0
+    }
 end
 
 local function rayCastDDA(rayStart, rayDir, map, result)
@@ -121,7 +129,7 @@ local function rayCastDDA(rayStart, rayDir, map, result)
     local side = -1
     local numChecks = 0
     
-    raycast.visibleTiles[(mapCheck.y * 16) + mapCheck.x +1] = true
+    raycast.visibleTiles[(mapCheck.y * 256) + mapCheck.x +1] = true
     while distance < maxDistance do
         numChecks = numChecks + 1
         if rayLength.x < rayLength.y then
@@ -136,12 +144,14 @@ local function rayCastDDA(rayStart, rayDir, map, result)
             side = 0
         end
 
-        if mapCheck.x >= 0 and mapCheck.x < 16 and mapCheck.y >= 0 and mapCheck.y < 16 then
-            local i = (mapCheck.y * 16) + mapCheck.x
+  
+        local wall = map:getWallTileAt(mapCheck.x, mapCheck.y)
+        if wall then
+            local i = (mapCheck.y * mapsize) + mapCheck.x
             
-            local id = map[i+1]
-            if id > 0 then
-                result.tileId = id
+            local id = wall.type
+            if wall.type > 0 then
+                result.tileId = wall.tileId
                 result.x = mapCheck.x
                 result.y = mapCheck.y
                 result.rayLength = distance
@@ -171,83 +181,84 @@ local function rayCastDDA(rayStart, rayDir, map, result)
                     end
                 end
             
-                   
-                if id == 2  then -- horizontal thin, animatable wall
-                    --[[
-                        - determine x-axis gradient of ray direction 
-                        - extend the ray by the amount required to reach the centre of the tile on the y-axis
-                        - recalculate collision point
-                        - if the extended ray is still within the horizontal bounds of this tile then collision occurred
-                        -- horizontal bounds can be truncated, this allows for animatable objects like doors
-                    --]]
-                    local m = rayDir.x / rayDir.y
-                    local dy = 0.5
-                    local dx =  0
-                    if side == 1 then
-                        --[[
-                            if the ray entered the tile on the y-axis we need to readjust the y-delta to reach the mid-point of the tile
-                            We just remove the collision point's fractional y value from the mid-point
-                        --]]
-                        if rayDir.y <= 0 then
-                            dy = (1-dy) -  math.remainder(result.collisionPoint.y)
-                        elseif rayDir.y >= 0 then
-                            dy = (dy) -  math.remainder(result.collisionPoint.y)
-                        end    
-                    end
-                    dx = m * dy
+                
+                -- if id == 2  then -- horizontal thin, animatable wall
+                --     --[[
+                --         - determine x-axis gradient of ray direction 
+                --         - extend the ray by the amount required to reach the centre of the tile on the y-axis
+                --         - recalculate collision point
+                --         - if the extended ray is still within the horizontal bounds of this tile then collision occurred
+                --         -- horizontal bounds can be truncated, this allows for animatable objects like doors
+                --     --]]
+                --     local m = rayDir.x / rayDir.y
+                --     local dy = 0.5
+                --     local dx =  0
+                --     if side == 1 then
+                --         --[[
+                --             if the ray entered the tile on the y-axis we need to readjust the y-delta to reach the mid-point of the tile
+                --             We just remove the collision point's fractional y value from the mid-point
+                --         --]]
+                --         if rayDir.y <= 0 then
+                --             dy = (1-dy) -  math.remainder(result.collisionPoint.y)
+                --         elseif rayDir.y >= 0 then
+                --             dy = (dy) -  math.remainder(result.collisionPoint.y)
+                --         end    
+                --     end
+                --     dx = m * dy
 
-                    distance = distance + vector(dx, dy):len()
-                    result.rayLength = distance 
-                    result.collisionPoint.x = rayStart.x + (rayDir.x * distance)
-                    result.collisionPoint.y = rayStart.y + (rayDir.y * distance)
-                    local offset=0.5
-                    result.u =  math.remainder(result.collisionPoint.x) - offset
+                --     distance = distance + vector(dx, dy):len()
+                --     result.rayLength = distance 
+                --     result.collisionPoint.x = rayStart.x + (rayDir.x * distance)
+                --     result.collisionPoint.y = rayStart.y + (rayDir.y * distance)
+                --     local offset=0.5
+                --     result.u =  math.remainder(result.collisionPoint.x) - offset
 
-                    if  result.collisionPoint.x >= mapCheck.x+offset and result.collisionPoint.x < mapCheck.x+1 then
-                        return true
-                    end
+                --     if  result.collisionPoint.x >= mapCheck.x+offset and result.collisionPoint.x < mapCheck.x+1 then
+                --         return true
+                --     end
             
-                elseif id == 3  then -- vertical thin, animatable wall
-                    --[[
-                        - determine y-axis gradient of ray direction
-                        - extend the ray by the amount required to reach the centre of the tile on the x-axis
-                        - recalculate collision point
-                        - if the extended ray is still within the vertical bounds of this tile then collision occurred
-                        -- vertical bounds can be truncated, this allows for animatable objects like doors
-                    --]]
-                    local m = rayDir.y / rayDir.x
-                    local dx =0.5
-                    local dy =  0
-                    if side == 0 then
-                        --[[
-                            if the ray entered the tile on the x-axis we need to readjust the x-delta to reach the mid-point of the tile
-                            We just remove the collision point's fractional x value from the mid-point
-                        --]]
-                        if rayDir.x <= 0 then
-                            dx = (1-dx) -  math.remainder(result.collisionPoint.x)
-                        elseif rayDir.x >= 0 then
-                            dx = (dx) -  math.remainder(result.collisionPoint.x)
-                        end    
-                    end
-                    dy = m * dx
+                -- elseif id == 3  then -- vertical thin, animatable wall
+                --     --[[
+                --         - determine y-axis gradient of ray direction
+                --         - extend the ray by the amount required to reach the centre of the tile on the x-axis
+                --         - recalculate collision point
+                --         - if the extended ray is still within the vertical bounds of this tile then collision occurred
+                --         -- vertical bounds can be truncated, this allows for animatable objects like doors
+                --     --]]
+                --     local m = rayDir.y / rayDir.x
+                --     local dx =0.5
+                --     local dy =  0
+                --     if side == 0 then
+                --         --[[
+                --             if the ray entered the tile on the x-axis we need to readjust the x-delta to reach the mid-point of the tile
+                --             We just remove the collision point's fractional x value from the mid-point
+                --         --]]
+                --         if rayDir.x <= 0 then
+                --             dx = (1-dx) -  math.remainder(result.collisionPoint.x)
+                --         elseif rayDir.x >= 0 then
+                --             dx = (dx) -  math.remainder(result.collisionPoint.x)
+                --         end    
+                --     end
+                --     dy = m * dx
 
-                    distance = distance + vector(dx, dy):len()
-                    result.rayLength = distance 
-                    result.collisionPoint.x = rayStart.x + (rayDir.x * distance)
-                    result.collisionPoint.y = rayStart.y + (rayDir.y * distance)
-                    local offset=0
-                    result.u = math.remainder(result.collisionPoint.y) - offset
-                                     
-                    if  result.collisionPoint.y >= mapCheck.y+offset and result.collisionPoint.y < mapCheck.y+1 then
-                        return true
-                    end
-                else -- just a normal wall
+                --     distance = distance + vector(dx, dy):len()
+                --     result.rayLength = distance 
+                --     result.collisionPoint.x = rayStart.x + (rayDir.x * distance)
+                --     result.collisionPoint.y = rayStart.y + (rayDir.y * distance)
+                --     local offset=0
+                --     result.u = math.remainder(result.collisionPoint.y) - offset
+                                    
+                --     if  result.collisionPoint.y >= mapCheck.y+offset and result.collisionPoint.y < mapCheck.y+1 then
+                --         return true
+                --     end
+                -- else -- just a normal wall
                     return true
-                end
+                -- end
             else
                 raycast.visibleTiles[i+1] = true
             end
         end
+
     end
     result.totalChecks = numChecks
     
@@ -273,6 +284,7 @@ local function renderWalls(camera, map)
     local start = love.timer.getTime()
 
     local result = raycast.result
+    -- collect wall data
     for x = 0,raycast.width-1 do
         local rayAngle = startAngle + (x * angleStep)
         
@@ -287,7 +299,11 @@ local function renderWalls(camera, map)
             local shade = (1 - (0.2 * result.side)) * (1 - (correctedRayLength/raycast.shadeDepth))
 
             raycast.dataBuffer:setPixel(x, 0, result.tileId, wallHeight, result.u, shade)
-            raycast.dataBuffer:setPixel(x, 1, correctedRayLength,correctedRayLength/raycast.maxDepth,0,0)      
+            raycast.dataBuffer:setPixel(x, 1, correctedRayLength,correctedRayLength * (1/raycast.maxDepth),0,0)     
+        else
+            -- ray reached max length without hitting anything
+            raycast.dataBuffer:setPixel(x, 0, 0, 0, 0, 0)
+            raycast.dataBuffer:setPixel(x, 1, raycast.maxDepth, 1,0,0)     
         end
 
         totalChecks = totalChecks + result.totalChecks
@@ -298,8 +314,10 @@ local function renderWalls(camera, map)
     raycast.dataBufferTexture:replacePixels(raycast.dataBuffer)
 
 
+    -- do render
     wallShader:send("cameraOffset", headOffset)
-   
+    wallShader:send("textures", map.texturePack)
+
     love.graphics.setCanvas({raycast.drawCanvas, depthstencil = raycast.sprDepthBuffer})
     love.graphics.setDepthMode("always", true)
     love.graphics.setShader(wallShader)
@@ -308,10 +326,13 @@ local function renderWalls(camera, map)
     
     local renderTime = (love.timer.getTime() - start) 
 
-    return totalChecks, raycastTime*1000000, renderTime*1000000
+    local timings = raycast.timings
+    timings.raycastTime = raycastTime
+    timings.wallsRenderTime = renderTime
+    timings.numChecks = totalChecks
 end
 
-local function drawTexturedPlane(shader, top, h, camera)
+local function drawTexturedPlane(shader, top, h, camera, textures, map, dimensions)
     local position = camera.position
     local headOffset = camera.height
     local angle = camera.angle
@@ -319,19 +340,27 @@ local function drawTexturedPlane(shader, top, h, camera)
 
     love.graphics.setShader(shader)
     shader:send("position", camera.positionArray)
-    shader:send("textures", debugTexture)
+    shader:send("textures", textures)
     shader:send("fov", fov)
     shader:send("angle", angle)
     shader:send("cameraOffset", headOffset)
-    
+    shader:send("map", map)
+    shader:send("mapDimensions", dimensions)
    
     love.graphics.rectangle("fill",0,top,raycast.width,h)
 end
 
-local function renderCeillingAndFloor(camera)
+local function renderCeillingAndFloor(camera, map)
+    local timings = raycast.timings
+
     love.graphics.setCanvas(raycast.drawCanvas)
-    drawTexturedPlane(ceillingShader, 0, raycast.height/2, camera)
-    drawTexturedPlane(floorShader, raycast.height/2, raycast.height/2, camera)
+    local start = love.timer.getTime()
+    drawTexturedPlane(ceillingShader, 0, raycast.height/2, camera, map.texturePack, map.ceillingsTexture, map.dimensions)
+    timings.ceillingRenderTime = love.timer.getTime() - start
+
+    start = love.timer.getTime()
+    drawTexturedPlane(floorShader, raycast.height/2, raycast.height/2, camera, map.texturePack, map.floorsTexture, map.dimensions)
+    timings.floorRenderTime = love.timer.getTime() - start
 end
 
 local function renderSprites(camera, sprites)
@@ -345,7 +374,7 @@ local function renderSprites(camera, sprites)
 
     love.graphics.setShader(spriteShader)
     
-
+    local start = love.timer.getTime()
     for i=1,#sprites do
         local spr = sprs[i]
         local sprX = spr.position.x - position.x
@@ -385,6 +414,7 @@ local function renderSprites(camera, sprites)
             
         end
     end
+    raycast.timings.spritesRenderTime = love.timer.getTime() - start
 end
 
 raycast.rayCastDDA = rayCastDDA
@@ -397,7 +427,6 @@ raycast.renderScene = function(camera, map, sprites)
     renderCeillingAndFloor(camera, map)
     renderWalls(camera, map)
     renderSprites(camera, sprites)
-    
 end
 
 return raycast

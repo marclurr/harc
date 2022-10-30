@@ -49,7 +49,7 @@ void effect() {
     RenderData rd = extractRenderData(screen_coords.x/love_ScreenSize.x);
 
     float ceilling = (love_ScreenSize.y/2) - (rd.wallHeight/2) + (cameraOffset / rd.rayLength) + cameraTilt;
-    float floor = ceilling + rd.wallHeight;
+    float floor = ceilling + rd.wallHeight + 1;
     float v = (screen_coords.y-ceilling) / rd.wallHeight;
 
     if (screen_coords.y < ceilling || screen_coords.y > floor) {
