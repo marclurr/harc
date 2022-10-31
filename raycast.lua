@@ -190,78 +190,78 @@ local function rayCastDDA(rayStart, rayDir, map, result)
                 end
             
                 
-                -- if id == 2  then -- horizontal thin, animatable wall
-                --     --[[
-                --         - determine x-axis gradient of ray direction 
-                --         - extend the ray by the amount required to reach the centre of the tile on the y-axis
-                --         - recalculate collision point
-                --         - if the extended ray is still within the horizontal bounds of this tile then collision occurred
-                --         -- horizontal bounds can be truncated, this allows for animatable objects like doors
-                --     --]]
-                --     local m = rayDir.x / rayDir.y
-                --     local dy = 0.5
-                --     local dx =  0
-                --     if side == 1 then
-                --         --[[
-                --             if the ray entered the tile on the y-axis we need to readjust the y-delta to reach the mid-point of the tile
-                --             We just remove the collision point's fractional y value from the mid-point
-                --         --]]
-                --         if rayDir.y <= 0 then
-                --             dy = (1-dy) -  math.remainder(result.collisionPoint.y)
-                --         elseif rayDir.y >= 0 then
-                --             dy = (dy) -  math.remainder(result.collisionPoint.y)
-                --         end    
-                --     end
-                --     dx = m * dy
+                if wall.type == 2  then -- horizontal thin, animatable wall
+                    --[[
+                        - determine x-axis gradient of ray direction 
+                        - extend the ray by the amount required to reach the centre of the tile on the y-axis
+                        - recalculate collision point
+                        - if the extended ray is still within the horizontal bounds of this tile then collision occurred
+                        -- horizontal bounds can be truncated, this allows for animatable objects like doors
+                    --]]
+                    local m = rayDir.x / rayDir.y
+                    local dy = 0.5
+                    local dx =  0
+                    if side == 1 then
+                        --[[
+                            if the ray entered the tile on the y-axis we need to readjust the y-delta to reach the mid-point of the tile
+                            We just remove the collision point's fractional y value from the mid-point
+                        --]]
+                        if rayDir.y <= 0 then
+                            dy = (1-dy) -  math.remainder(result.collisionPoint.y)
+                        elseif rayDir.y >= 0 then
+                            dy = (dy) -  math.remainder(result.collisionPoint.y)
+                        end    
+                    end
+                    dx = m * dy
 
-                --     distance = distance + vector(dx, dy):len()
-                --     result.rayLength = distance 
-                --     result.collisionPoint.x = rayStart.x + (rayDir.x * distance)
-                --     result.collisionPoint.y = rayStart.y + (rayDir.y * distance)
-                --     local offset=0.5
-                --     result.u =  math.remainder(result.collisionPoint.x) - offset
+                    distance = distance + vector(dx, dy):len()
+                    result.rayLength = distance 
+                    result.collisionPoint.x = rayStart.x + (rayDir.x * distance)
+                    result.collisionPoint.y = rayStart.y + (rayDir.y * distance)
+                    local offset=wall.offset or 0
+                    result.u =  math.remainder(result.collisionPoint.x) - offset
 
-                --     if  result.collisionPoint.x >= mapCheck.x+offset and result.collisionPoint.x < mapCheck.x+1 then
-                --         return true
-                --     end
+                    if  result.collisionPoint.x >= mapCheck.x+offset and result.collisionPoint.x < mapCheck.x+1 then
+                        return true
+                    end
             
-                -- elseif id == 3  then -- vertical thin, animatable wall
-                --     --[[
-                --         - determine y-axis gradient of ray direction
-                --         - extend the ray by the amount required to reach the centre of the tile on the x-axis
-                --         - recalculate collision point
-                --         - if the extended ray is still within the vertical bounds of this tile then collision occurred
-                --         -- vertical bounds can be truncated, this allows for animatable objects like doors
-                --     --]]
-                --     local m = rayDir.y / rayDir.x
-                --     local dx =0.5
-                --     local dy =  0
-                --     if side == 0 then
-                --         --[[
-                --             if the ray entered the tile on the x-axis we need to readjust the x-delta to reach the mid-point of the tile
-                --             We just remove the collision point's fractional x value from the mid-point
-                --         --]]
-                --         if rayDir.x <= 0 then
-                --             dx = (1-dx) -  math.remainder(result.collisionPoint.x)
-                --         elseif rayDir.x >= 0 then
-                --             dx = (dx) -  math.remainder(result.collisionPoint.x)
-                --         end    
-                --     end
-                --     dy = m * dx
+                elseif wall.type == 3  then -- vertical thin, animatable wall
+                    --[[
+                        - determine y-axis gradient of ray direction
+                        - extend the ray by the amount required to reach the centre of the tile on the x-axis
+                        - recalculate collision point
+                        - if the extended ray is still within the vertical bounds of this tile then collision occurred
+                        -- vertical bounds can be truncated, this allows for animatable objects like doors
+                    --]]
+                    local m = rayDir.y / rayDir.x
+                    local dx =0.5
+                    local dy =  0
+                    if side == 0 then
+                        --[[
+                            if the ray entered the tile on the x-axis we need to readjust the x-delta to reach the mid-point of the tile
+                            We just remove the collision point's fractional x value from the mid-point
+                        --]]
+                        if rayDir.x <= 0 then
+                            dx = (1-dx) -  math.remainder(result.collisionPoint.x)
+                        elseif rayDir.x >= 0 then
+                            dx = (dx) -  math.remainder(result.collisionPoint.x)
+                        end    
+                    end
+                    dy = m * dx
 
-                --     distance = distance + vector(dx, dy):len()
-                --     result.rayLength = distance 
-                --     result.collisionPoint.x = rayStart.x + (rayDir.x * distance)
-                --     result.collisionPoint.y = rayStart.y + (rayDir.y * distance)
-                --     local offset=0
-                --     result.u = math.remainder(result.collisionPoint.y) - offset
+                    distance = distance + vector(dx, dy):len()
+                    result.rayLength = distance 
+                    result.collisionPoint.x = rayStart.x + (rayDir.x * distance)
+                    result.collisionPoint.y = rayStart.y + (rayDir.y * distance)
+                    local offset=wall.offset or 0
+                    result.u = math.remainder(result.collisionPoint.y) - offset
                                     
-                --     if  result.collisionPoint.y >= mapCheck.y+offset and result.collisionPoint.y < mapCheck.y+1 then
-                --         return true
-                --     end
-                -- else -- just a normal wall
+                    if  result.collisionPoint.y >= mapCheck.y+offset and result.collisionPoint.y < mapCheck.y+1 then
+                        return true
+                    end
+                else -- just a normal wall
                     return true
-                -- end
+                end
             else
                 -- raycast.visibleTiles[i+1] = true
             end
@@ -304,7 +304,7 @@ local function renderWalls(camera, map)
             -- collect data pertinent to render step and push into a texture to be read by the wall shader 
             local correctedRayLength = result.rayLength * cos(rayAngle - angle)
             local wallHeight = raycast.height/correctedRayLength
-            local shade = (1 - (0.2 * result.side)) * (1 - (correctedRayLength/raycast.shadeDepth))
+            local shade = (1 - (0.5 * result.side)) * (1 - (correctedRayLength/raycast.shadeDepth))
 
             raycast.dataBuffer:setPixel(x, 0, result.tileId, wallHeight, result.u, shade)
             raycast.dataBuffer:setPixel(x, 1, correctedRayLength,correctedRayLength * (1/raycast.maxDepth),0,0)     

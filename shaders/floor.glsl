@@ -26,7 +26,7 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
     float uy = floor(ppy);          
     float u = ppx - ux;
     float v = ppy - uy;
-    float tileId = Texel(map, vec2(ux , uy) / mapDimensions).r;
+    float tileId = Texel(map, vec2(ux +0.5, uy+0.5) / mapDimensions).r;
     
     if (int(ux) < 0 || int(ux) >= mapDimensions.x || int(uy) < 0 || int(uy) >= mapDimensions.y || tileId < 0) {
         discard;

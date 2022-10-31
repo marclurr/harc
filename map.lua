@@ -20,7 +20,7 @@ function Map:new(width,height, texturePack, data)
     if data then
         self.data = data
         assert(#data == 3*width*height, "Data buffer should be 3x" .. (width*height))
-        self:rebuild()
+        self:rebuildFloorAndCeiling()
     else
         self.data = {}
         for i=1,width*height do 
@@ -32,7 +32,7 @@ function Map:new(width,height, texturePack, data)
     end
 end
 
-function Map:rebuild()
+function Map:rebuildFloorAndCeiling()
     local width, height, data = self.width, self.height, self.data
     if self.floorsTexture then self.floorsTexture:release() end
     if self.ceillingsTexture then self.ceillingsTexture:release() end

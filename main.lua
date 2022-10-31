@@ -1,6 +1,6 @@
 -- generate a test map
 local mapData = {}
-mapsize=256
+mapsize=100
 for i=0,(mapsize*mapsize)-1 do
     local x = (i)% mapsize
     local y = math.floor((i)/mapsize)
@@ -19,6 +19,10 @@ for i=0,(mapsize*mapsize)-1 do
         floor = {tileId=math.random(0,2)}
         ceilling = {tileId=math.random(0,2)}  
         
+        if x == 1 or y == 1 then
+            floor.tileId=2
+            ceilling.tileId=2
+        end
     end
 
     mapData[i+1]=wall
@@ -43,6 +47,15 @@ local Map = require("map")
 
 
 local map = Map(mapsize, mapsize, debugTexture, mapData)
+map:getWallTileAt(3,0).type = 2
+map:getFloorTileAt(3,0).tileId = 0
+map:getCeillingTileAt(3,0).tileId = 0
+map:getWallTileAt(3,0).offset = 0.5
+map:getWallTileAt(0,3).type = 3
+map:getFloorTileAt(0,3).tileId = 0
+map:getCeillingTileAt(0,3).tileId = 0
+map:getWallTileAt(0,3).offset = 0.75
+map:rebuildFloorAndCeiling()
 raycast.init(width, height, 50, 45, drawCanvas)
 
 local camera = Camera(1.04)
@@ -81,6 +94,10 @@ t = 0
 
 function love.update(dt)
     t = t + dt 
+    
+    map:getWallTileAt(3,0).offset = (1+math.sin(t*6))/2
+    map:getWallTileAt(0,3).offset = (1+math.sin((t+t/2)*6))/2
+
     -- headOffset = math.sin(t*12) * 16
     local speed = 5
     local moving = false
