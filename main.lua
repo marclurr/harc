@@ -7,12 +7,15 @@ local Slab = require("Slab")
 
 local resolutions = {}
 local resolutionNames = {}
+-- some slighly weird resolutions, all are multiples of original test resolution of 320x200
+table.insert(resolutions, {w=320/2, h=200/2})
 table.insert(resolutions, {w=320, h=200})
 table.insert(resolutions, {w=640, h=400})
 table.insert(resolutions, {w=1280, h=800})
 table.insert(resolutions, {w=1920, h=1200})
+table.insert(resolutions, {w=2560, h=1600}) 
 table.insert(resolutions, {w=3840, h=2400})
-
+-- bit of a hack to show the values ordered in combobox
 for i=1,#resolutions do
     local r= resolutions[i]
     local key = r.w .. "x" ..  r.h
@@ -53,14 +56,11 @@ function configureEngine()
     if drawCanvas then drawCanvas:release() end
     drawCanvas = love.graphics.newCanvas(width, height)
     drawCanvas:setFilter("nearest", "nearest")
-    print(model.shadeDepth)
     raycast.init(width, height, model.drawDepth, model.shadeDepth, drawCanvas)
 end
 
 
 local state
-
-
 local PreviewState = {name="Preview"}
 local UiState = {name = "Configure"}
 function PreviewState:update(dt)
@@ -139,7 +139,6 @@ end
 
 
 function love.load()
-    -- local r = resolutions[model.drawResolution]
     configureEngine()
 
     Slab.Initialize()
@@ -175,14 +174,14 @@ function love.update(dt)
     Slab.SetLayoutColumn(1)
     Slab.Text("Draw Depth")
     Slab.SetLayoutColumn(2)
-    if Slab.InputNumberDrag("DrawDepth", model.drawDepth, 6, 100, 1) then
+    if Slab.InputNumberDrag("DrawDepth", model.drawDepth, 6, 100, 4) then
         newDrawDepth = Slab.GetInputNumber()
     end
 
     Slab.SetLayoutColumn(1)
     Slab.Text("Shade Depth")
     Slab.SetLayoutColumn(2)
-    if Slab.InputNumberDrag("ShadeDepth", model.shadeDepth, 6, 100, 1) then
+    if Slab.InputNumberDrag("ShadeDepth", model.shadeDepth, 6, 100, 2) then
         newShadeDepth = Slab.GetInputNumber()
     end
 
@@ -216,17 +215,14 @@ function love.draw()
 
     raycast.renderScene(model.preview.camera, map, sprs)
 
-
     local totalTime = (love.timer.getTime() - start) 
     local dc = love.graphics.getStats().drawcalls
     love.graphics.reset()
-    love.graphics.draw(drawCanvas,0,0,0,love.graphics.getWidth()/width,love.graphics.getHeight()/height)
-
-    
+    love.graphics.draw(drawCanvas,0,0,0,love.graphics.getWidth()/width,love.graphics.getHeight()/height)  
 
     -- draw debug text
     
-    debugPrint(string.format("%s Mode: Press tab to switch modes.", state.name), 5, 5, {1,0,0,1})
+    debugPrint(string.format("%s Mode: Press tab to switch modes.", state.name), 5, 5, {0.7,0,0,1})
     local y = 5+18
     for k,v in pairs(raycast.stats) do
         if k:sub(-#"Time") == "Time" then
@@ -236,10 +232,7 @@ function love.draw()
         debugPrint(str, 5, y)
         y = y + 18
     end
-    debugPrint(string.format("frameTime=%.2fms, drawCalls=%d, theoreticalRenderFPS=%d, resolution=%s",totalTime* 1000, dc, 1/totalTime, model.drawResolution), 5, y)
-
-    
-    
+    debugPrint(string.format("frameTime=%.2fms, drawCalls=%d, theoreticalRenderFPS=%d, resolution=%s",totalTime* 1000, dc, 1/totalTime, model.drawResolution), 5, y) 
     
     Slab.Draw()
 
@@ -248,7 +241,7 @@ end
 function debugPrint(str, x, y, clr)
     local fnt = love.graphics.getFont()
     local w,h = fnt:getWidth(str), fnt:getHeight(str)
-    love.graphics.setColor(0,0,0,0.5)
+    love.graphics.setColor(0,0,0,0.75)
     love.graphics.rectangle("fill", x-2, y-2, w+4, h+4)
     if not clr then
         love.graphics.setColor(1,1,1,1)
@@ -259,5 +252,3 @@ function debugPrint(str, x, y, clr)
     love.graphics.print(str, x, y)
     
 end
-
-print(tostring(love.filesystem.getSource():sub(-#".love") == ".love"))
