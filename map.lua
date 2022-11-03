@@ -28,17 +28,20 @@ function Map:new(width,height, texturePack, data)
             self.data[i+width*height] = {tileId=-1}
             self.data[i+width*height*2] = {tileId=-1}
         end
-        self:rebuild()
+        self:rebuildFloorAndCeiling()
     end
 end
 
 function Map:rebuildFloorAndCeiling()
     local width, height, data = self.width, self.height, self.data
-    if self.floorsTexture then self.floorsTexture:release() end
-    if self.ceillingsTexture then self.ceillingsTexture:release() end
+
 
     local floorImageData = love.image.newImageData(width, height, "rgba16f")
     local ceillingImageData = love.image.newImageData(width, height, "rgba16f")
+
+    if not self.floorsTexture then self.floorsTexture = love.graphics.newImage(floorImageData) end
+    if not self.ceillingsTexture then self.ceillingsTexture = love.graphics.newImage(ceillingImageData) end
+
     for y=0,height-1 do
         for x=0,width-1 do
             local floorTile = self:getFloorTileAt(x,y)
@@ -48,10 +51,10 @@ function Map:rebuildFloorAndCeiling()
         end
     end
 
-    self.floorsTexture = love.graphics.newImage(floorImageData)
-    self.ceillingsTexture = love.graphics.newImage(ceillingImageData)
-    floorImageData:release()
-    ceillingImageData:release()
+    self.floorsTexture:replacePixels(floorImageData)
+    self.ceillingsTexture:replacePixels(ceillingImageData)
+    -- floorImageData:release()
+    -- ceillingImageData:release()
 end
 
 function Map:getWallTileAt(x, y)

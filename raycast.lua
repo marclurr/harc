@@ -1,8 +1,6 @@
 local Object = require("lib.classic")
 local vector = require("lib.hump.vector")
 
-
-
 local wallShader = love.graphics.newShader("shaders/walls.glsl")
 local floorShader = love.graphics.newShader("shaders/floor.glsl")
 local ceillingShader = love.graphics.newShader("shaders/ceilling.glsl")
@@ -60,12 +58,12 @@ raycast.init = function(width, height, maxDepth, shadeDepth, drawCanvas)
 
         pixel format rgba16f allows values to have a range of [-65504, +65504], which should be more than ample. See https://love2d.org/wiki/PixelFormat
         data layout:
-        __________________________________________________________
-        |     | r         | g             | b         | a         |
-        |=====|===========|===============|===========|===========|
-        | 0   | textureId | wallHeight    | texture U | shade     |
-        | 1   | rayLength | not used      | not used  | not used  |
-        |_____|___________|_______________|___________|___________|
+        ________________________________________________________________________
+        |     | r         | g                           | b         | a         |
+        |=====|===========|=============================|===========|===========|
+        | 0   | textureId | wallHeight                  | texture U | shade     |
+        | 1   | rayLength | normalised ray length       | not used  | not used  |
+        |_____|___________|_____________________________|___________|___________|
     ]]
     if raycast.dataBuffer then raycast.dataBuffer:release() end
     raycast.dataBuffer = love.image.newImageData(width, 2, "rgba16f") 
@@ -90,7 +88,7 @@ raycast.init = function(width, height, maxDepth, shadeDepth, drawCanvas)
     floorShader:send("shadeDepth", raycast.shadeDepth)
     
 
-    raycast.timings = {
+    raycast.stats = {
         floorRenderTime = 0,
         ceillingRenderTime = 0,
         wallsRenderTime = 0,
@@ -303,7 +301,7 @@ local function renderWalls(camera, map)
         if rayCastDDA(position, rayDir, map, result) then
             -- collect data pertinent to render step and push into a texture to be read by the wall shader 
             local correctedRayLength = result.rayLength * cos(rayAngle - angle)
-            local wallHeight = raycast.height/correctedRayLength
+            local wallHeight = raycast.width/correctedRayLength
             local shade = (1 - (0.5 * result.side)) * (1 - (correctedRayLength/raycast.shadeDepth))
 
             raycast.dataBuffer:setPixel(x, 0, result.tileId, wallHeight, result.u, shade)
@@ -334,10 +332,10 @@ local function renderWalls(camera, map)
     
     local renderTime = (love.timer.getTime() - start) 
 
-    local timings = raycast.timings
-    timings.raycastTime = raycastTime
-    timings.wallsRenderTime = renderTime
-    timings.numChecks = totalChecks
+    local stats = raycast.stats
+    stats.raycastTime = raycastTime
+    stats.wallsRenderTime = renderTime
+    stats.numChecks = totalChecks
 end
 
 local function drawTexturedPlane(shader, top, h, camera, textures, map, dimensions)
@@ -359,16 +357,16 @@ local function drawTexturedPlane(shader, top, h, camera, textures, map, dimensio
 end
 
 local function renderCeillingAndFloor(camera, map)
-    local timings = raycast.timings
+    local stats = raycast.stats
 
     love.graphics.setCanvas(raycast.drawCanvas)
     local start = love.timer.getTime()
     drawTexturedPlane(ceillingShader, 0, raycast.height/2, camera, map.texturePack, map.ceillingsTexture, map.dimensions)
-    timings.ceillingRenderTime = love.timer.getTime() - start
+    stats.ceillingRenderTime = love.timer.getTime() - start
 
     start = love.timer.getTime()
     drawTexturedPlane(floorShader, raycast.height/2, raycast.height/2, camera, map.texturePack, map.floorsTexture, map.dimensions)
-    timings.floorRenderTime = love.timer.getTime() - start
+    stats.floorRenderTime = love.timer.getTime() - start
 end
 
 local toSpr = vector(0,0)
@@ -410,9 +408,9 @@ local function renderSprites(camera, sprites)
         if visible then
             local texture = spr.texture
             local perpDistance = dst * math.cos( objAngle )
-            local fullHeight = raycast.height / perpDistance
+            local fullHeight = raycast.width / perpDistance
 
-            local objHeight =  (math.min(1,texture:getHeight()/32)* raycast.height) / perpDistance
+            local objHeight =  (math.min(1,texture:getHeight()/32)* raycast.width) / perpDistance
             
             local floor = (raycast.height/2) + (fullHeight*0.5) + (headOffset/perpDistance) 
             local ceilling = floor - objHeight
@@ -427,7 +425,7 @@ local function renderSprites(camera, sprites)
             
         end
     end
-    raycast.timings.spritesRenderTime = love.timer.getTime() - start
+    raycast.stats.spritesRenderTime = love.timer.getTime() - start
 end
 
 raycast.rayCastDDA = rayCastDDA
@@ -440,6 +438,8 @@ raycast.renderScene = function(camera, map, sprites)
     renderCeillingAndFloor(camera, map)
     renderWalls(camera, map)
     renderSprites(camera, sprites)
+    local stats = raycast.stats
+    raycast.stats.renderTime = stats.ceillingRenderTime + stats.floorRenderTime + stats.wallsRenderTime + stats.spritesRenderTime
 end
 
 return raycast

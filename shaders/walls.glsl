@@ -46,7 +46,7 @@ RenderData extractRenderData(float screenU) {
 
 void effect() {
     vec2 screen_coords = love_PixelCoord;
-    RenderData rd = extractRenderData((screen_coords.x+0.5)/love_ScreenSize.x);
+    RenderData rd = extractRenderData((screen_coords.x)/love_ScreenSize.x);
 
     float ceilling = (love_ScreenSize.y/2) - (rd.wallHeight/2) + (cameraOffset / rd.rayLength) + cameraTilt;
     float floor = ceilling + rd.wallHeight + 1;

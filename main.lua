@@ -1,62 +1,113 @@
--- generate a test map
-local mapData = {}
-mapsize=100
-for i=0,(mapsize*mapsize)-1 do
-    local x = (i)% mapsize
-    local y = math.floor((i)/mapsize)
-
-    local wall = {type=-1}
-    local floor = {tileId=-1}
-    local ceilling = {tileId=-1}
-    
-    if y == 0 or y == mapsize-1 or x == 0 or x == mapsize-1 then 
-        wall = {type=1, tileId=math.random(0,2)}
-    else
-        -- if y == 1 then print("it's one") end
-            -- if math.random() > 0.8 then
-            --     -- wall = {type=1, tileId=math.random(0,2)}
-            -- end
-        floor = {tileId=math.random(0,2)}
-        ceilling = {tileId=math.random(0,2)}  
-        
-        if x == 1 or y == 1 then
-            floor.tileId=2
-            ceilling.tileId=2
-        end
-    end
-
-    mapData[i+1]=wall
-    mapData[i+1+(mapsize*mapsize)]=floor
-    mapData[i+1+(mapsize*mapsize*2)]=ceilling
-end
-
-
-love.graphics.setDefaultFilter("nearest", "nearest")
-local width, height= 320,200 --love.graphics.getWidth(), love.graphics.getHeight()
-local width, height= love.graphics.getWidth(), love.graphics.getHeight()
-local drawCanvas = love.graphics.newCanvas(width, height)
-
-local debugTexture = love.graphics.newArrayImage({"assets/textures/debug.png", "assets/textures/danger-wall.png", "assets/textures/door.png"})
-local zombie = love.graphics.newImage("assets/textures/zombie.png")
-
 require("funcs")
 local Camera = require("camera")
 local vector = require("lib.hump.vector")
 local raycast = require("raycast")
 local Map = require("map")
+local Slab = require("Slab")
+
+local resolutions = {}
+local resolutionNames = {}
+table.insert(resolutions, {w=320, h=200})
+table.insert(resolutions, {w=640, h=400})
+table.insert(resolutions, {w=1280, h=800})
+table.insert(resolutions, {w=1920, h=1200})
+table.insert(resolutions, {w=3840, h=2400})
+
+for i=1,#resolutions do
+    local r= resolutions[i]
+    local key = r.w .. "x" ..  r.h
+    r.name = key
+    resolutionNames[key]=i
+end
+
+love.graphics.setDefaultFilter("nearest", "nearest")
+local width, height 
+local drawCanvas 
 
 
-local map = Map(mapsize, mapsize, debugTexture, mapData)
-map:getWallTileAt(3,0).type = 2
-map:getFloorTileAt(3,0).tileId = 0
-map:getCeillingTileAt(3,0).tileId = 0
-map:getWallTileAt(3,0).offset = 0.5
-map:getWallTileAt(0,3).type = 3
-map:getFloorTileAt(0,3).tileId = 0
-map:getCeillingTileAt(0,3).tileId = 0
-map:getWallTileAt(0,3).offset = 0.75
-map:rebuildFloorAndCeiling()
-raycast.init(width, height, 50, 45, drawCanvas)
+
+
+-- "assets"
+local zombie = love.graphics.newImage("assets/textures/zombie.png")
+local map = require("testmap")
+
+local mouseSensitivity = 1.
+
+local model = {
+    drawResolution = "320x200",
+    drawDepth = 50,
+    shadeDepth = 45,
+    preview = {
+        camera = Camera(1.04,1.5,1.5),
+        angle = 0,
+        x = 0,
+        y = 0,
+        clicked = false
+    }
+}
+
+function configureEngine()
+    local r = resolutions[resolutionNames[model.drawResolution]]
+    width = r.w
+    height = r.h
+    if drawCanvas then drawCanvas:release() end
+    drawCanvas = love.graphics.newCanvas(width, height)
+    drawCanvas:setFilter("nearest", "nearest")
+    print(model.shadeDepth)
+    raycast.init(width, height, model.drawDepth, model.shadeDepth, drawCanvas)
+end
+
+
+local state
+
+
+local PreviewState = {name="Preview"}
+local UiState = {name = "Configure"}
+function PreviewState:update(dt)
+    -- rotation
+    love.mouse.setRelativeMode(true)
+    local dx, dy = Slab.GetMouseDelta()
+    local angle = model.preview.camera.angle
+    model.preview.camera.angle = angle + (dx * 0.001 * mouseSensitivity)
+    
+
+    -- movement
+    local speed = 5
+    local moving = false
+    local playerDir = vector(math.cos(angle), math.sin(angle))
+    local position = model.preview.camera.position
+    if Slab.IsKeyDown("w") then
+        position = position + playerDir * speed * dt
+    elseif Slab.IsKeyDown("s") then
+        position = position - playerDir * speed * dt
+    end
+
+    local strafeDir = vector(math.sin(angle), -math.cos(angle))
+    if Slab.IsKeyDown("a") then
+        position = position + strafeDir * speed * dt
+    elseif Slab.IsKeyDown("d") then
+        position = position - strafeDir * speed * dt
+    end
+
+    model.preview.camera:setPosition(position)
+  
+end
+
+function PreviewState:keypressed(key)
+    if key == "tab" then
+        love.mouse.setRelativeMode(false)
+        state = UiState
+    end
+end
+
+function UiState:keypressed(key)
+    if key == "tab" then
+       
+        state = PreviewState
+    end
+end
+
+state = PreviewState
 
 local camera = Camera(1.04)
 local position = vector(1.5, 1.5)
@@ -71,57 +122,89 @@ sprs = {}
 for i=1,15 do
     table.insert(sprs, {
         position= vector(math.random(1,14) +0.5, math.random(1,14)+0.5), 
-        -- position= vector(4.5, 1.5), 
         texture = zombie
     })
 end
 
 
-
-love.mouse.setRelativeMode(true)
 function love.keypressed(key)
     if key == "escape" then
         love.event.quit()
+    else
+        if state.keypressed then
+            state:keypressed(key)
+        end
     end
 end
 
-local mouseSensitivity = 1.
-function love.mousemoved(x,y,dx,dy,istouch)
-    angle = angle + (dx * 0.001 * mouseSensitivity)
-end
 
-t = 0
+function love.load()
+    -- local r = resolutions[model.drawResolution]
+    configureEngine()
+
+    Slab.Initialize()
+    Slab.SetVerbose(true)
+    Slab.DisableDocks({"Left", "Right", "Bottom"})
+end
 
 function love.update(dt)
-    t = t + dt 
+    Slab.Update(dt)
+
+    local newResolution = model.drawResolution
+    local newDrawDepth = model.drawDepth 
+    local newShadeDepth = model.shadeDepth
+
+	Slab.BeginWindow('RenderSettingsWindow', {NoSavedSettings=true,Title="Render Settings", AutoSizeWindow=true, ShowMinimize=false})
+    Slab.BeginLayout("DebugLayout", {Columns=2})
     
-    map:getWallTileAt(3,0).offset = (1+math.sin(t*6))/2
-    map:getWallTileAt(0,3).offset = (1+math.sin((t+t/2)*6))/2
+    Slab.SetLayoutColumn(1)
+    Slab.Text("Canvas Resolution")
+    Slab.SetLayoutColumn(2)
+    if Slab.BeginComboBox("ResolutionComboBox", {Selected = model.drawResolution}) then
+        for i, v in ipairs(resolutions) do
+            if Slab.TextSelectable(v.name) then
+                newResolution = v.name
+            end
+        end
+        
+        Slab.EndComboBox()
+    end 
+    
 
-    -- headOffset = math.sin(t*12) * 16
-    local speed = 5
-    local moving = false
-    local playerDir = vector(math.cos(angle), math.sin(angle))
-    if love.keyboard.isDown("w") then
-        position = position + playerDir * speed * dt
-        moving = true
-    elseif love.keyboard.isDown("s") then
-        position = position - playerDir * speed * dt
-        moving = true
+
+    Slab.SetLayoutColumn(1)
+    Slab.Text("Draw Depth")
+    Slab.SetLayoutColumn(2)
+    if Slab.InputNumberDrag("DrawDepth", model.drawDepth, 6, 100, 1) then
+        newDrawDepth = Slab.GetInputNumber()
     end
 
-    local strafeDir = vector(math.sin(angle), -math.cos(angle))
-    if love.keyboard.isDown("a") then
-        position = position + strafeDir * speed * dt
-        moving = true
-    elseif love.keyboard.isDown("d") then
-        position = position - strafeDir * speed * dt
-        moving = true
+    Slab.SetLayoutColumn(1)
+    Slab.Text("Shade Depth")
+    Slab.SetLayoutColumn(2)
+    if Slab.InputNumberDrag("ShadeDepth", model.shadeDepth, 6, 100, 1) then
+        newShadeDepth = Slab.GetInputNumber()
     end
 
-    camera:setPosition(position)
-    camera.angle = angle
-    camera.height = headOffset
+
+    Slab.EndLayout()
+	Slab.EndWindow()
+
+    if newResolution ~= model.drawResolution or newDrawDepth ~= model.drawDepth or newShadeDepth ~= model.shadeDepth then
+        model.drawResolution = newResolution
+        model.drawDepth = newDrawDepth
+        model.shadeDepth = newShadeDepth
+        
+        configureEngine()
+    end
+  
+    model.preview.clicked = true
+    model.preview.x, model.preview.y = 0, 0
+    model.preview.w, model.preview.h = width, height
+
+    if state.update then
+        state:update(dt)
+    end
 end
 
 function love.draw()
@@ -131,50 +214,50 @@ function love.draw()
     love.graphics.clear()
     love.graphics.setColor(1,1,1,1)
 
-    raycast.renderScene(camera, map, sprs)
+    raycast.renderScene(model.preview.camera, map, sprs)
 
 
     local totalTime = (love.timer.getTime() - start) 
     local dc = love.graphics.getStats().drawcalls
     love.graphics.reset()
+    love.graphics.draw(drawCanvas,0,0,0,love.graphics.getWidth()/width,love.graphics.getHeight()/height)
+
     
-    love.graphics.draw(drawCanvas,0,0,0,math.floor(love.graphics.getWidth()/width),math.floor(love.graphics.getHeight()/height))
-    love.graphics.setColor(0,0,0,1)
-    local y = 5
-    for k,v in pairs(raycast.timings) do
+
+    -- draw debug text
+    
+    debugPrint(string.format("%s Mode: Press tab to switch modes.", state.name), 5, 5, {1,0,0,1})
+    local y = 5+18
+    for k,v in pairs(raycast.stats) do
         if k:sub(-#"Time") == "Time" then
             v = v * 1000
         end
         local str = string.format("%s=%.4f",k,v)
         debugPrint(str, 5, y)
-        -- love.graphics.setColor(0,0,0,1)
-        -- love.graphics.print(str, 5-1, y)
-        -- love.graphics.print(str, 5+1, y)
-        -- love.graphics.print(str, 5, y+1)
-        -- love.graphics.print(str, 5, y-1)
-        -- love.graphics.print(str, 5, y)
-        -- love.graphics.setColor(1,1,1,1)
-
-        -- love.graphics.print(str, 5, y)
         y = y + 18
     end
+    debugPrint(string.format("frameTime=%.2fms, drawCalls=%d, theoreticalRenderFPS=%d, resolution=%s",totalTime* 1000, dc, 1/totalTime, model.drawResolution), 5, y)
+
     
-    debugPrint(string.format("frameTime=%.2fms, drawCalls=%d",totalTime* 1000, dc), 5, y)
-    love.graphics.setColor(1,1,1,1)
+    
+    
+    Slab.Draw()
+
 end
 
-function debugPrint(str, x, y)
+function debugPrint(str, x, y, clr)
     local fnt = love.graphics.getFont()
     local w,h = fnt:getWidth(str), fnt:getHeight(str)
     love.graphics.setColor(0,0,0,0.5)
     love.graphics.rectangle("fill", x-2, y-2, w+4, h+4)
-    -- love.graphics.print(str, x-1, y)
-    -- love.graphics.print(str, x+1, y)
-    -- love.graphics.print(str, x, y+1)
-    -- love.graphics.print(str, x, y-1)
-    -- love.graphics.print(str, x, y)
-    love.graphics.setColor(1,1,1,1)
+    if not clr then
+        love.graphics.setColor(1,1,1,1)
+    else 
+        love.graphics.setColor(clr)
+    end
 
     love.graphics.print(str, x, y)
     
 end
+
+print(tostring(love.filesystem.getSource():sub(-#".love") == ".love"))

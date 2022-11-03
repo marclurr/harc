@@ -3,11 +3,11 @@ local vector = require("lib.hump.vector")
 
 local Camera = Object:extend()
 
-function Camera:new(fov)
+function Camera:new(fov, x,y)
     self.fov = fov
     self.angle = 0
-    self.position = vector(0, 0)
-    self.positionArray = {0,0}
+    self.position = vector(x,y)
+    self.positionArray = {x,y}
     self.height = 0
 end
 
