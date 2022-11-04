@@ -40,6 +40,7 @@ local model = {
     drawResolution = "320x200",
     drawDepth = 50,
     shadeDepth = 45,
+    debugWalls = false,
     preview = {
         camera = Camera(1.04,1.5,1.5),
         angle = 0,
@@ -76,16 +77,16 @@ function PreviewState:update(dt)
     local moving = false
     local playerDir = vector(math.cos(angle), math.sin(angle))
     local position = model.preview.camera.position
-    if Slab.IsKeyDown("w") then
+    if Slab.IsKeyDown("w") or Slab.IsKeyDown("up") then
         position = position + playerDir * speed * dt
-    elseif Slab.IsKeyDown("s") then
+    elseif Slab.IsKeyDown("s") or Slab.IsKeyDown( "down") then
         position = position - playerDir * speed * dt
     end
 
     local strafeDir = vector(math.sin(angle), -math.cos(angle))
-    if Slab.IsKeyDown("a") then
+    if Slab.IsKeyDown("a") or Slab.IsKeyDown( "left") then
         position = position + strafeDir * speed * dt
-    elseif Slab.IsKeyDown("d") then
+    elseif Slab.IsKeyDown("d") or Slab.IsKeyDown( "right") then
         position = position - strafeDir * speed * dt
     end
 
@@ -185,6 +186,14 @@ function love.update(dt)
         newShadeDepth = Slab.GetInputNumber()
     end
 
+    
+    Slab.SetLayoutColumn(1)
+    Slab.Text("Debug Walls?")
+    Slab.SetLayoutColumn(2)
+    if Slab.CheckBox(model.debugWalls) then
+        model.debugWalls = not model.debugWalls
+    end
+
 
     Slab.EndLayout()
 	Slab.EndWindow()
@@ -233,6 +242,18 @@ function love.draw()
         y = y + 18
     end
     debugPrint(string.format("frameTime=%.2fms, drawCalls=%d, theoreticalRenderFPS=%d, resolution=%s",totalTime* 1000, dc, 1/totalTime, model.drawResolution), 5, y) 
+
+    if model.debugWalls and state == UiState then
+        local xScale= width/love.graphics.getWidth()
+        local x,y = love.mouse.getPosition()
+        local xScaled = math.floor(x * xScale)
+        local tid,_,_,_ = raycast.dataBuffer:getPixel(xScale, 0)
+        local len,z,dx,dy = raycast.dataBuffer:getPixel(xScaled, 1)
+        
+        love.graphics.setColor(1,0,0,1)
+        love.graphics.rectangle("fill",xScaled/xScale,0,math.max(1,1/xScale), love.graphics.getHeight())
+        debugPrint(string.format("column=%d, textureId=%d, distance=%f, rayDirection=(%f, %f) ", xScaled, tid, len, dx, dy), x+10, y-15)
+    end
     
     Slab.Draw()
 
@@ -241,6 +262,7 @@ end
 function debugPrint(str, x, y, clr)
     local fnt = love.graphics.getFont()
     local w,h = fnt:getWidth(str), fnt:getHeight(str)
+    x = math.min(love.graphics.getWidth()-(w+4), x)
     love.graphics.setColor(0,0,0,0.75)
     love.graphics.rectangle("fill", x-2, y-2, w+4, h+4)
     if not clr then

@@ -134,9 +134,12 @@ local function rayCastDDA(rayStart, rayDir, map, result)
     local distance = 0
     local side = -1
     local numChecks = 0
+
+    result.dx = rayDir.x
+    result.dy = rayDir.y
     
     -- raycast.visibleTiles[(mapCheck.y * 256) + mapCheck.x +1] = true
-    while distance < maxDistance do
+    while distance <= maxDistance do
         numChecks = numChecks + 1
         if rayLength.x < rayLength.y then
             mapCheck.x = mapCheck.x + step.x
@@ -166,7 +169,7 @@ local function rayCastDDA(rayStart, rayDir, map, result)
                 result.collisionOccurred = true
                 result.collisionPoint.x = rayStart.x + (rayDir.x * distance)
                 result.collisionPoint.y = rayStart.y + (rayDir.y * distance)
-            
+
                 if side == 1 then 
                     if rayDir.x >= 0 then
                         result.collisionSide = WallSide.West
@@ -199,30 +202,39 @@ local function rayCastDDA(rayStart, rayDir, map, result)
                     local m = rayDir.x / rayDir.y
                     local dy = 0.5
                     local dx =  0
+                    local doCheck = true
                     if side == 1 then
                         --[[
                             if the ray entered the tile on the y-axis we need to readjust the y-delta to reach the mid-point of the tile
                             We just remove the collision point's fractional y value from the mid-point
                         --]]
-                        if rayDir.y <= 0 then
+                        if rayDir.y < 0 then
+                            doCheck = math.remainder(result.collisionPoint.y) > 0.5
                             dy = (1-dy) -  math.remainder(result.collisionPoint.y)
-                        elseif rayDir.y >= 0 then
+                        elseif rayDir.y > 0 then
+                            doCheck = math.remainder(result.collisionPoint.y) < 0.5
                             dy = (dy) -  math.remainder(result.collisionPoint.y)
                         end    
                     end
-                    dx = m * dy
 
-                    distance = distance + vector(dx, dy):len()
-                    result.rayLength = distance 
-                    result.collisionPoint.x = rayStart.x + (rayDir.x * distance)
-                    result.collisionPoint.y = rayStart.y + (rayDir.y * distance)
-                    local offset=wall.offset or 0
-                    result.u =  math.remainder(result.collisionPoint.x) - offset
+                    if doCheck then
+                        dx = m * dy
 
-                    if  result.collisionPoint.x >= mapCheck.x+offset and result.collisionPoint.x < mapCheck.x+1 then
-                        return true
+                        local tmpDistance = distance + vector(dx, dy):len()
+                        local colX = rayStart.x + (rayDir.x * tmpDistance)
+                        local colY = rayStart.y + (rayDir.y * tmpDistance)
+                        local offset=wall.offset or 0    
+
+                        if  colX >= mapCheck.x+offset and colX < mapCheck.x+1 then
+                            distance = tmpDistance
+                            result.rayLength = tmpDistance 
+                            result.collisionPoint.x = colX
+                            result.collisionPoint.y = colY
+                            result.side = 0
+                            result.u =  math.remainder(colX) - offset
+                            return true
+                        end
                     end
-            
                 elseif wall.type == 3  then -- vertical thin, animatable wall
                     --[[
                         - determine y-axis gradient of ray direction
@@ -234,28 +246,37 @@ local function rayCastDDA(rayStart, rayDir, map, result)
                     local m = rayDir.y / rayDir.x
                     local dx =0.5
                     local dy =  0
+                    local doCheck = true
                     if side == 0 then
                         --[[
                             if the ray entered the tile on the x-axis we need to readjust the x-delta to reach the mid-point of the tile
                             We just remove the collision point's fractional x value from the mid-point
                         --]]
                         if rayDir.x <= 0 then
+                            doCheck = math.remainder(result.collisionPoint.x) > 0.5
                             dx = (1-dx) -  math.remainder(result.collisionPoint.x)
                         elseif rayDir.x >= 0 then
+                            doCheck = math.remainder(result.collisionPoint.x) < 0.5
                             dx = (dx) -  math.remainder(result.collisionPoint.x)
                         end    
                     end
-                    dy = m * dx
+                    if doCheck then
+                        dy = m * dx
 
-                    distance = distance + vector(dx, dy):len()
-                    result.rayLength = distance 
-                    result.collisionPoint.x = rayStart.x + (rayDir.x * distance)
-                    result.collisionPoint.y = rayStart.y + (rayDir.y * distance)
-                    local offset=wall.offset or 0
-                    result.u = math.remainder(result.collisionPoint.y) - offset
-                                    
-                    if  result.collisionPoint.y >= mapCheck.y+offset and result.collisionPoint.y < mapCheck.y+1 then
-                        return true
+                        local tmpDistance = distance + vector(dx, dy):len()
+                        local colX = rayStart.x + (rayDir.x * tmpDistance)
+                        local colY = rayStart.y + (rayDir.y * tmpDistance)
+                        local offset=wall.offset or 0
+                                        
+                        if  colY >= mapCheck.y+offset and colY < mapCheck.y+1 then
+                            result.rayLength = tmpDistance
+                            result.collisionPoint.x = colX
+                            result.collisionPoint.y = colY
+                            result.side = 1
+                            
+                            result.u = math.remainder(colY) - offset
+                            return true
+                        end
                     end
                 else -- just a normal wall
                     return true
@@ -303,13 +324,12 @@ local function renderWalls(camera, map)
             local correctedRayLength = result.rayLength * cos(rayAngle - angle)
             local wallHeight = raycast.width/correctedRayLength
             local shade = (1 - (0.5 * result.side)) * (1 - (correctedRayLength/raycast.shadeDepth))
-
-            raycast.dataBuffer:setPixel(x, 0, result.tileId, wallHeight, result.u, shade)
-            raycast.dataBuffer:setPixel(x, 1, correctedRayLength,correctedRayLength * (1/raycast.maxDepth),0,0)     
+            raycast.dataBuffer:setPixel(x, 0, result.tileId or 0, wallHeight, result.u, shade)
+            raycast.dataBuffer:setPixel(x, 1, correctedRayLength,correctedRayLength * (1/raycast.maxDepth),result.dx,result.dy)     
         else
             -- ray reached max length without hitting anything
             raycast.dataBuffer:setPixel(x, 0, 0, 0, 0, 0)
-            raycast.dataBuffer:setPixel(x, 1, raycast.maxDepth, 1,0,0)     
+            raycast.dataBuffer:setPixel(x, 1, raycast.maxDepth, 1,result.dx,result.dy)     
         end
 
         totalChecks = totalChecks + result.totalChecks

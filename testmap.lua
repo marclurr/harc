@@ -38,18 +38,56 @@ local map = Map(mapsize, mapsize, texturePack, mapData)
 map:getWallTileAt(3,0).type = 2
 map:getFloorTileAt(3,0).tileId = 0
 map:getCeillingTileAt(3,0).tileId = 0
-map:getWallTileAt(3,0).offset = 0.5
+map:getWallTileAt(3,0).offset = 0.25
 
 map:getWallTileAt(6,0).type = 2
 map:getWallTileAt(6,0).tileId = 0
 map:getWallTileAt(6,0).offset = 0
 map:getFloorTileAt(6,0).tileId = 0
 map:getCeillingTileAt(6,0).tileId = 0
+map:getWallTileAt(7,0).type = 2
+map:getWallTileAt(7,0).tileId = 0
+map:getWallTileAt(7,0).offset = 0
+map:getFloorTileAt(7,0).tileId = 0
+map:getCeillingTileAt(7,0).tileId = 0
+map:getWallTileAt(8,0).type = 2
+map:getWallTileAt(8,0).tileId = 0
+map:getWallTileAt(8,0).offset = 0
+map:getFloorTileAt(8,0).tileId = 0
+map:getCeillingTileAt(8,0).tileId = 0
+
+
+
+map:getWallTileAt(8,1).type = 2
+map:getWallTileAt(8,1).tileId = 0
+map:getWallTileAt(8,1).offset = 0
+map:getFloorTileAt(8,1).tileId = 0
+map:getCeillingTileAt(8,1).tileId = 0
+map:getWallTileAt(9,1).type = 2
+map:getWallTileAt(9,1).tileId = 0
+map:getWallTileAt(9,1).offset = 0
+map:getFloorTileAt(9,1).tileId = 0
+map:getCeillingTileAt(9,1).tileId = 0
+
 
 map:getWallTileAt(0,3).type = 3
 map:getFloorTileAt(0,3).tileId = 0
 map:getCeillingTileAt(0,3).tileId = 0
 map:getWallTileAt(0,3).offset = 0.75
 map:rebuildFloorAndCeiling()
+
+map:getWallTileAt(0,5).type = 3
+map:getWallTileAt(0,5).offset = 0
+map:getWallTileAt(0,6).type = 3
+map:getWallTileAt(0,6).offset = 0
+map:getWallTileAt(0,7).type = 3
+map:getWallTileAt(0,7).offset = 0
+map:getWallTileAt(1,5).type = 3
+map:getWallTileAt(1,5).offset = 0
+map:getWallTileAt(1,6).type = 3
+map:getWallTileAt(1,6).offset = 0
+map:rebuildFloorAndCeiling()
+
+
 
 return map
