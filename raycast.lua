@@ -402,15 +402,15 @@ local function renderSprites(camera, sprites)
     love.graphics.setDepthMode("lequal", true)
 
     love.graphics.setShader(spriteShader)
-    
+    local eyeX = math.cos(angle)
+    local eyeY = math.sin(angle)
     local start = love.timer.getTime()
     for i=1,#sprites do
         local spr = sprs[i]
         local sprX = spr.position.x - position.x
         local sprY = spr.position.y - position.y
         local dst = math.sqrt(sprX*sprX + sprY*sprY)
-        local eyeX = math.cos(angle)
-        local eyeY = math.sin(angle)
+ 
         local objAngle =  math.atan2(sprY, sprX)- math.atan2(eyeY, eyeX)
 
         if objAngle < -math.pi then

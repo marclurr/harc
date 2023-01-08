@@ -3,7 +3,7 @@ local Camera = require("camera")
 local vector = require("lib.hump.vector")
 local raycast = require("raycast")
 local Map = require("map")
-local Slab = require("Slab")
+local Slab = require("lib.Slab")
 
 local resolutions = {}
 local resolutionNames = {}
@@ -247,7 +247,7 @@ function love.draw()
         local xScale= width/love.graphics.getWidth()
         local x,y = love.mouse.getPosition()
         local xScaled = math.floor(x * xScale)
-        local tid,_,_,_ = raycast.dataBuffer:getPixel(xScale, 0)
+        local tid,_,_,_ = raycast.dataBuffer:getPixel(xScaled, 0)
         local len,z,dx,dy = raycast.dataBuffer:getPixel(xScaled, 1)
         
         love.graphics.setColor(1,0,0,1)
