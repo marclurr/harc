@@ -6,6 +6,7 @@ local Camera = Object:extend()
 function Camera:new(fov, x,y)
     self.fov = fov
     self.angle = 0
+    self.tilt = 0
     self.position = vector(x,y)
     self.positionArray = {x,y}
     self.height = 0

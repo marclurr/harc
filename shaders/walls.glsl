@@ -24,9 +24,9 @@ __________________________________________________________
 |_____|___________|_______________|___________|___________|
 */
 uniform Image dataBuffer;
-uniform float cameraOffset = 0;
-uniform float cameraTilt = 0;
-uniform float drawDepth = 1;
+uniform float cameraOffset;
+uniform float cameraTilt;
+uniform float drawDepth;
 
 RenderData extractRenderData(float screenU) {
     RenderData result;
@@ -48,15 +48,16 @@ void effect() {
     vec2 screen_coords = love_PixelCoord;
     RenderData rd = extractRenderData((screen_coords.x)/love_ScreenSize.x);
 
-    float ceilling = (love_ScreenSize.y/2) - (rd.wallHeight/2) + (cameraOffset / rd.rayLength) + cameraTilt;
-    float floor = ceilling + rd.wallHeight + 1;
+    float ceilling = (love_ScreenSize.y/2.0) - (rd.wallHeight/2.0) + (cameraOffset / rd.rayLength) + cameraTilt;
+    float floor = ceilling + (rd.wallHeight + 1);
     float v = (screen_coords.y-ceilling) / rd.wallHeight;
 
     if (screen_coords.y < ceilling || screen_coords.y > floor) {
         // can't simply discard this fragment as we want to write to the depth buffer, so just write a blank pixel instead
         love_Canvases[MAIN_CANVAS] = vec4(0);
         gl_FragDepth = 1;
-    } else {    
+    } else {  
+          
         vec3 colour = Texel(textures, vec3(rd.u,v, rd.textureId)).rgb * rd.shade;
         love_Canvases[MAIN_CANVAS] = vec4(colour, 1);
         gl_FragDepth = rd.z;

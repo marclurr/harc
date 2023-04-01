@@ -41,7 +41,7 @@ cos = math.cos
 
 local raycast = {}
 
-raycast.init = function(width, height, maxDepth, shadeDepth, drawCanvas)
+raycast.init = function(width, height, maxDepth, shadeDepth, drawCanvas, textureAtlas)
     raycast.width = width
     raycast.height = height
 
@@ -86,7 +86,15 @@ raycast.init = function(width, height, maxDepth, shadeDepth, drawCanvas)
     floorShader:send("width", raycast.width)
     floorShader:send("height", raycast.height/2)
     floorShader:send("shadeDepth", raycast.shadeDepth)
+
     
+    raycast.spriteBatch = love.graphics.newSpriteBatch(textureAtlas, 10000)
+    local format = {
+        {"VertexDepth", "float", 1}
+    }
+
+    raycast.spriteDepths = love.graphics.newMesh(format, raycast.spriteBatch:getBufferSize()*4)
+    raycast.spriteBatch:attachAttribute("VertexDepth", raycast.spriteDepths)
 
     raycast.stats = {
         floorRenderTime = 0,
@@ -156,7 +164,7 @@ local function rayCastDDA(rayStart, rayDir, map, result)
   
         local wall = map:getWallTileAt(mapCheck.x, mapCheck.y)
         if wall then
-            local i = (mapCheck.y * mapsize) + mapCheck.x
+            local i = (mapCheck.y * map.width) + mapCheck.x
             
             local id = wall.type
             if wall.type > 0 then
@@ -220,7 +228,7 @@ local function rayCastDDA(rayStart, rayDir, map, result)
                     if doCheck then
                         dx = m * dy
 
-                        local tmpDistance = distance + vector(dx, dy):len()
+                        local tmpDistance = distance + math.len(dx,dy)
                         local colX = rayStart.x + (rayDir.x * tmpDistance)
                         local colY = rayStart.y + (rayDir.y * tmpDistance)
                         local offset=wall.offset or 0    
@@ -263,7 +271,7 @@ local function rayCastDDA(rayStart, rayDir, map, result)
                     if doCheck then
                         dy = m * dx
 
-                        local tmpDistance = distance + vector(dx, dy):len()
+                        local tmpDistance = distance + math.len(dx,dy)
                         local colX = rayStart.x + (rayDir.x * tmpDistance)
                         local colY = rayStart.y + (rayDir.y * tmpDistance)
                         local offset=wall.offset or 0
@@ -322,7 +330,7 @@ local function renderWalls(camera, map)
         if rayCastDDA(position, rayDir, map, result) then
             -- collect data pertinent to render step and push into a texture to be read by the wall shader 
             local correctedRayLength = result.rayLength * cos(rayAngle - angle)
-            local wallHeight = raycast.width/correctedRayLength
+            local wallHeight = (1*raycast.width)/correctedRayLength
             local shade = (1 - (0.5 * result.side)) * (1 - (correctedRayLength/raycast.shadeDepth))
             raycast.dataBuffer:setPixel(x, 0, result.tileId or 0, wallHeight, result.u, shade)
             raycast.dataBuffer:setPixel(x, 1, correctedRayLength,correctedRayLength * (1/raycast.maxDepth),result.dx,result.dy)     
@@ -342,6 +350,7 @@ local function renderWalls(camera, map)
 
     -- do render
     wallShader:send("cameraOffset", headOffset)
+    wallShader:send("cameraTilt", camera.tilt)
     wallShader:send("textures", map.texturePack)
 
     love.graphics.setCanvas({raycast.drawCanvas, depthstencil = raycast.sprDepthBuffer})
@@ -369,10 +378,12 @@ local function drawTexturedPlane(shader, top, h, camera, textures, map, dimensio
     shader:send("textures", textures)
     shader:send("fov", fov)
     shader:send("angle", angle)
+    shader:send("cameraTilt", camera.tilt)
     shader:send("cameraOffset", headOffset)
     shader:send("map", map)
     shader:send("mapDimensions", dimensions)
    
+    
     love.graphics.rectangle("fill",0,top,raycast.width,h)
 end
 
@@ -381,11 +392,13 @@ local function renderCeillingAndFloor(camera, map)
 
     love.graphics.setCanvas(raycast.drawCanvas)
     local start = love.timer.getTime()
-    drawTexturedPlane(ceillingShader, 0, raycast.height/2, camera, map.texturePack, map.ceillingsTexture, map.dimensions)
+    drawTexturedPlane(ceillingShader, 0, (raycast.height/2)+camera.tilt, camera, map.texturePack, map.ceillingsTexture, map.dimensions)
     stats.ceillingRenderTime = love.timer.getTime() - start
 
     start = love.timer.getTime()
-    drawTexturedPlane(floorShader, raycast.height/2, raycast.height/2, camera, map.texturePack, map.floorsTexture, map.dimensions)
+    local top = (raycast.height/2)+camera.tilt
+    local h = raycast.height - top
+    drawTexturedPlane(floorShader, top, h, camera, map.texturePack, map.floorsTexture, map.dimensions)
     stats.floorRenderTime = love.timer.getTime() - start
 end
 
@@ -400,6 +413,7 @@ local function renderSprites(camera, sprites)
 
     love.graphics.setCanvas(raycast.spriteMode)
     love.graphics.setDepthMode("lequal", true)
+    raycast.spriteBatch:clear()
 
     love.graphics.setShader(spriteShader)
     local eyeX = math.cos(angle)
@@ -432,7 +446,7 @@ local function renderSprites(camera, sprites)
 
             local objHeight =  (math.min(1,texture:getHeight()/32)* raycast.width) / perpDistance
             
-            local floor = (raycast.height/2) + (fullHeight*0.5) + (headOffset/perpDistance) 
+            local floor = (raycast.height/2) + (fullHeight*0.5) + (headOffset/perpDistance) + camera.tilt
             local ceilling = floor - objHeight
             local aspectRatio = texture:getHeight() / texture:getWidth()
             local objWidth = objHeight / aspectRatio
@@ -440,11 +454,20 @@ local function renderSprites(camera, sprites)
             local startY = ceilling
             local startX = math.floor(objMiddle - (objWidth/2))
 
-            spriteShader:send("depth", perpDistance)
-            love.graphics.draw(texture,startX, startY, 0, objWidth / texture:getWidth(), objHeight/ texture:getHeight())
-            
+            local id = raycast.spriteBatch:add(startX, startY, 0,objWidth / texture:getWidth(), objHeight/ texture:getHeight())
+            local dep = 1+ 4 * ( id - 1 )
+            raycast.spriteDepths:setVertex(dep, perpDistance)
+            raycast.spriteDepths:setVertex(dep+1, perpDistance)
+            raycast.spriteDepths:setVertex(dep+2,  perpDistance)
+            raycast.spriteDepths:setVertex(dep+3, perpDistance)
+
+            if raycast.spriteBatch:getCount() == raycast.spriteBatch:getBufferSize() then
+                love.graphics.draw(raycast.spriteBatch)
+                raycast.spriteBatch:clear()
+            end
         end
     end
+    love.graphics.draw(raycast.spriteBatch)
     raycast.stats.spritesRenderTime = love.timer.getTime() - start
 end
 

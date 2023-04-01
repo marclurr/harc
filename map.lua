@@ -1,12 +1,12 @@
-local ffi = require("ffi")
+-- local ffi = require("ffi")
 local Object = require("lib.classic")
 
 local Map = Object:extend()
 
-ffi.cdef[[
-    typedef struct {uint8_t type, tileId;} wall;
-    typedef struct {uint8_t tileId, nu1, nu2, nu3; } surface;
-]]
+-- ffi.cdef[[
+--     typedef struct {uint8_t type, tileId;} wall;
+--     typedef struct {uint8_t tileId, nu1, nu2, nu3; } surface;
+-- ]]
 
 -- because the floors are queried using a GPU texture, maps ideally should have square, power of 2 dimensions 
 function Map:new(width,height, texturePack, data)
@@ -53,8 +53,8 @@ function Map:rebuildFloorAndCeiling()
 
     self.floorsTexture:replacePixels(floorImageData)
     self.ceillingsTexture:replacePixels(ceillingImageData)
-    -- floorImageData:release()
-    -- ceillingImageData:release()
+    floorImageData:release()
+    ceillingImageData:release()
 end
 
 function Map:getWallTileAt(x, y)

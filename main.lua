@@ -32,12 +32,13 @@ local drawCanvas
 
 -- "assets"
 local zombie = love.graphics.newImage("assets/textures/zombie.png")
+zombie:setFilter("nearest","nearest")
 local map = require("testmap")
 
 local mouseSensitivity = 1.
 
 local model = {
-    drawResolution = "320x200",
+    drawResolution = "640x400",
     drawDepth = 50,
     shadeDepth = 45,
     debugWalls = false,
@@ -57,7 +58,7 @@ function configureEngine()
     if drawCanvas then drawCanvas:release() end
     drawCanvas = love.graphics.newCanvas(width, height)
     drawCanvas:setFilter("nearest", "nearest")
-    raycast.init(width, height, model.drawDepth, model.shadeDepth, drawCanvas)
+    raycast.init(width, height, model.drawDepth, model.shadeDepth, drawCanvas, zombie)
 end
 
 

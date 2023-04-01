@@ -3,7 +3,7 @@ function math.remainder(f)
 end
 
 function math.round(f)
-    return math.floor(f+0.50)
+    return math.floor(f+0.55)
 end
 
 function math.sign(f)
@@ -18,6 +18,10 @@ end
 
 function math.lerp(a, b, t)
     return (a + ((b - a) * t))
+end
+
+function math.len(x, y)
+    return math.sqrt(x*x+y*y)
 end
 
 function ortho(left, right, top, bottom, near, far)
